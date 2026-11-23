@@ -57,7 +57,7 @@ Optional, only if the user asks:
 | `templates/` | Jinja2 pages (`index.html` jobs list, `board.html`, `application.html`, `phases.html`, `manual.html`, `detail.html`, `offline.html`) and `_partials`. |
 | `static/` | `style.css`, `app.js`, `sw.js` (service worker), `fonts/` (Geist, OFL), `icons/` (PWA icons). |
 
-Other top-level pieces: `scripts/render_resume.py` (resume PDF renderer), `scripts/import_applications.py` (bulk import of past applications), `scripts/make_icons.sh` (regenerates PWA icons with headless Chrome/Chromium), `agents/` (canonical resume agent prompts) and the thin wrappers `.claude/agents/`, `.codex/agents/`, `.opencode/agents/`, `.pi/agents/`, `profile.example/` (resume knowledge-base template), `config.example.toml`, `Dockerfile`, `compose.yaml`.
+Other top-level pieces: `scripts/render_resume.py` (resume PDF renderer), `scripts/import_applications.py` (bulk import of past applications), `scripts/make_icons.sh` (regenerates PWA icons with headless Chrome/Chromium), `scripts/demo_data.py` + `scripts/screenshots.sh` (fictional demo database and the README screenshots), `agents/` (canonical resume agent prompts) and the thin wrappers `.claude/agents/`, `.codex/agents/`, `.opencode/agents/`, `.pi/agents/`, `profile.example/` (resume knowledge-base template), `config.example.toml`, `Dockerfile`, `compose.yaml`.
 
 ### Data flow
 
@@ -118,7 +118,7 @@ docker compose up -d --build                   # rebuild and restart the contain
 
 On Windows replace `.venv/bin/` with `.venv\Scripts\`. The Docker image copies `pyproject.toml`, `README.md` and `jobfinder/` (so `README.md` must stay at the repository root: `pyproject.toml` uses it as the package readme) and runs `job-finder serve --host 0.0.0.0` inside the container.
 
-`CHROME=/path/to/chrome scripts/make_icons.sh` regenerates `jobfinder/static/icons/` (needs Chrome or Chromium). Poppler's `pdfinfo` / `pdftotext` are optional: a few resume tests use them and are skipped without them.
+`CHROME=/path/to/chrome scripts/make_icons.sh` regenerates `jobfinder/static/icons/` (needs Chrome or Chromium). `scripts/screenshots.sh` regenerates the README images in `docs/screenshots/` (needs Chrome or Chromium; `PORT` defaults to 8790, never 8000): it seeds a throwaway database with `scripts/demo_data.py --config <config> [--today YYYY-MM-DD]` (fictional data; the script refuses to write into an existing database) inside a `mktemp -d` folder, serves it, captures the pages and deletes everything. It never reads your `config.toml` or `data/`. Rerun it after a visible UI change and look at the PNGs before committing. Poppler's `pdfinfo` / `pdftotext` are optional: a few resume tests use them and are skipped without them.
 
 ## CodeGraph (optional)
 
@@ -192,6 +192,7 @@ Optional feature that turns the user's own career notes into a tailored one-page
 | Change the Markdown export | `jobfinder/export.py`, `tests/test_export.py` |
 | Change security behavior | `web.py` middleware and `safe_next`, `tests/test_hardening.py` |
 | Change styles, scripts, PWA, icons | `jobfinder/static/`, `scripts/make_icons.sh`, `tests/test_assets.py`, `tests/test_pwa.py`, `tests/test_ui.py` |
+| Regenerate the README screenshots or change the demo data | `scripts/screenshots.sh`, `scripts/demo_data.py`, `docs/screenshots/`, `tests/test_demo_data.py` |
 | Change Docker | `Dockerfile`, `compose.yaml`, README Docker sections, `tests/test_cli.py` (checks compose assumptions) |
 | Change resume tooling | `scripts/render_resume.py`, `agents/*.md` (and the wrappers in `.claude/`, `.codex/`, `.opencode/`, `.pi/agents/`), `docs/ai-agents.md`, `profile.example/`, `tests/test_render_resume.py` |
 | Understand a feature as a user sees it | `docs/features.md`, `docs/applications.md` |

@@ -18,6 +18,22 @@ Built on [JobSpy](https://github.com/speedyapply/JobSpy). It uses public search 
 - **Installable PWA** and a split list/detail view with keyboard navigation.
 - **Optional AI resume tools**: a one-page PDF renderer and two agent prompts that work with Claude Code, Codex, OpenCode and pi.
 
+## Screenshots
+
+All three show **fictional demo data** (invented companies, people and notes), never a real search or database.
+
+![The jobs list with a job open in the split pane: stack matches highlighted, salary, work mode and possible duplicates.](docs/screenshots/jobs.png)
+
+*Jobs: the list on the left, the selected offer on the right, with your stack highlighted and ranked first.*
+
+![The applications board with the activity calendar, the daily goal and streak in the header, and an upcoming interview.](docs/screenshots/board.png)
+
+*Applications: a board with your own phases, the activity calendar and the next interviews.*
+
+![One application with its timeline: phase moves, notes and an upcoming interview.](docs/screenshots/application.png)
+
+*One application: every move and note on a timeline, with phase, outcome and CV on the side.*
+
 ## Prerequisites
 
 Pick one way to run it:
@@ -31,7 +47,7 @@ Optional, only if you want them:
 
 - An AI coding tool (Claude Code, Codex, OpenCode or pi) for the [resume agents](#resume-tools-optional), or to let an AI agent set the project up for you (it follows [AGENTS.md](AGENTS.md)).
 - poppler (`pdfinfo` / `pdftotext`) for a few resume PDF tests, which are skipped without it.
-- Chrome or Chromium, only to regenerate the app icons with `scripts/make_icons.sh`.
+- Chrome or Chromium, only to regenerate the app icons with `scripts/make_icons.sh` and the README screenshots with `scripts/screenshots.sh`.
 
 ## Quickstart: local Python
 
@@ -219,9 +235,9 @@ To start:
 ```
 jobfinder/             the application package
   templates/ static/   Jinja2 pages, CSS/JS, fonts, PWA icons and service worker
-scripts/               render_resume.py, import_applications.py, make_icons.sh
+scripts/               render_resume.py, import_applications.py, make_icons.sh, demo_data.py, screenshots.sh
 tests/                 pytest suite
-docs/                  detailed reference (features, applications, configuration, ai-agents)
+docs/                  detailed reference (features, applications, configuration, ai-agents) and screenshots/
 profile.example/       empty templates for the resume knowledge base
 agents/                canonical resume-writer and resume-pdf prompts (see docs/ai-agents.md)
 .claude/agents/ .codex/agents/ .opencode/agents/ .pi/agents/
@@ -241,7 +257,7 @@ Private and git-ignored: `config.toml`, `data/`, `exports/`, `profile/`, `resume
 .venv/bin/job-finder serve --reload
 ```
 
-- Optional tools: poppler's `pdfinfo` / `pdftotext` (`brew install poppler`, `apt install poppler-utils`) enable a few resume PDF checks, which are skipped without them. Chrome or Chromium is needed only by `scripts/make_icons.sh` to regenerate the app icons (set `CHROME=/path/to/chrome` if it is not on your `PATH`).
+- Optional tools: poppler's `pdfinfo` / `pdftotext` (`brew install poppler`, `apt install poppler-utils`) enable a few resume PDF checks, which are skipped without them. Chrome or Chromium is needed only by `scripts/make_icons.sh` (app icons) and `scripts/screenshots.sh` (the README screenshots, taken from fictional data seeded by `scripts/demo_data.py` into a throwaway folder; it serves on port 8790, never 8000, and never reads your `data/`). Set `CHROME=/path/to/chrome` if it is not on your `PATH`.
 - Conventions in short: write the test first for any behavior change and test through the public interface (the web app with `TestClient`, or the CLI); update this README, `docs/` and the `--help` text with any user-visible change; English for code, comments, docs and commit messages; [Conventional Commits](https://www.conventionalcommits.org/); small, reviewable diffs; no new dependencies without need. Full details, architecture and gotchas are in [AGENTS.md](AGENTS.md).
 
 ## Contributing
