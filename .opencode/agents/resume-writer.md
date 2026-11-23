@@ -1,0 +1,13 @@
+---
+description: Tailors the candidate's one-page resume to a pasted job description, using only the career knowledge base in profile/. Use it when the user gives a job description and wants a resume.md and match-report.md to review. Never produces the PDF.
+mode: subagent
+permissions:
+  - action: edit
+    resource: "*"
+    effect: allow
+  - action: shell
+    resource: "*"
+    effect: deny
+---
+
+Read `agents/resume-writer.md` from the repository root and follow it exactly. Those are the canonical instructions for this agent; the rules in `profile/06-cv-rules.md` override them.

@@ -1,0 +1,21 @@
+<header class="top">
+  <h1><a href="/" data-keep-filters>JOB_FINDER</a></h1>
+  <div class="top-side">
+    {% if goal %}
+    <div class="goal goal-{{ goal.kind }}" role="group" aria-label="Daily goal">
+      {% if goal.kind == 'weekend' %}
+      <span class="goal-today">WEEKEND · {{ goal.count }} applied</span>
+      {% else %}
+      <span class="goal-today">{% if goal.kind == 'met' %}✓ {% endif %}TODAY {{ goal.count }}/{{ goal.goal }}</span>
+      <span class="goal-meter" aria-hidden="true">{% for on in goal.segments %}<i class="seg{{ ' on' if on }}"></i>{% endfor %}</span>
+      {% endif %}
+      <span class="sr-only">{{ goal.sr }}</span>
+      {% if goal.streak %}<span class="goal-streak" title="{{ goal.streak_title }}">STREAK {{ goal.streak }}</span>{% endif %}
+    </div>
+    {% endif %}
+    <nav class="main-nav">
+      <a href="/" data-keep-filters{% if active_nav == 'jobs' %} aria-current="page"{% endif %}>Jobs</a>
+      <a href="/applications" data-keep-apps{% if active_nav == 'applications' %} aria-current="page"{% endif %}>Applications</a>
+    </nav>
+  </div>
+</header>

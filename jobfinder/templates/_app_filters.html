@@ -1,0 +1,67 @@
+{% macro chip(name, c) -%}
+<li><label class="toggle chip{{ ' chip-empty' if not c.count }}"><input type="checkbox" name="{{ name }}" value="{{ c.value }}"{{ ' checked' if c.on }}><span class="chip-name">{{ c.label }}</span><span class="chip-count">{{ c.count }}</span></label></li>
+{%- endmacro %}
+{% macro menu(key, label) -%}
+<details class="fmenu" data-menu="{{ key }}">
+  <summary>{{ label }}{% if badges[key] %}<span class="fbadge" title="{{ badges[key] }} selected">{{ badges[key] }}</span> <span class="sr-only">{{ badges[key] }} selected</span>{% endif %}</summary>
+  <div class="fpop" role="group" aria-label="{{ label }} filter">{{ caller() }}</div>
+</details>
+{%- endmacro %}
+<form class="app-filters" method="get" action="/applications" data-autosubmit role="search" aria-label="Filter applications">
+  {% if view == 'list' %}<input type="hidden" name="view" value="list">{% endif %}
+  {% if f.day %}<input type="hidden" name="day" value="{{ f.day }}">{% endif %}
+  <div class="fbar">
+    <label class="fsearch">
+      <span class="sr-only">Search company, role or notes</span>
+      <svg class="fsearch-icon" aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg>
+      <input type="search" name="q" placeholder="Search company, role or notes" aria-label="Search company, role or notes" autocomplete="off" value="{{ f.q }}">
+      {% if f.q %}<a class="fsearch-clear" href="{{ clear_search_url }}" aria-label="Clear search">×</a>{% else %}<kbd class="fkey" aria-hidden="true">/</kbd>{% endif %}
+    </label>
+    <div class="fmenus">
+      {% call menu('outcome', 'Outcome') %}<ul class="chips">
+        {%- for c in outcome_chips %}{{ chip('outcome', c) }}{% endfor %}
+      </ul>{% endcall %}
+      {% call menu('phase', 'Phase') %}<ul class="chips">
+        {%- for c in phase_chips %}{{ chip('phase', c) }}{% endfor %}
+      </ul>{% endcall %}
+      {% call menu('site', 'Source') %}<label class="field"><span class="field-label">Source</span><select name="site">
+        <option value="">all sources</option>
+        {% for s in sites %}<option value="{{ s }}"{% if f.site == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select></label>{% endcall %}
+      {% call menu('date', 'Date') %}<fieldset class="field fquick"><legend class="field-label">Applied</legend>
+        <label class="fradio"><input type="radio" name="within" value=""{{ ' checked' if not f.within }}> Any time</label>
+        {% for d in within_options %}<label class="fradio"><input type="radio" name="within" value="{{ d }}"{{ ' checked' if f.within == d }}> Last {{ d }} days</label>{% endfor %}
+      </fieldset>
+      <div class="fdates">
+        <label class="field"><span class="field-label">From</span><input type="date" name="from"{% if f.from_date %} value="{{ f.from_date }}"{% endif %}></label>
+        <label class="field"><span class="field-label">To</span><input type="date" name="to"{% if f.to_date %} value="{{ f.to_date }}"{% endif %}></label>
+      </div>
+      {% if f.day %}<p class="fday">Day <b>{{ day_label }}</b> <a href="{{ day_url(f.day) }}">Clear day</a></p>{% endif %}{% endcall %}
+      {% call menu('more', 'More') %}<label class="field"><span class="field-label">CV</span><select name="cv">
+        <option value="">any</option>
+        <option value="attached"{% if f.cv == 'attached' %} selected{% endif %}>attached</option>
+        <option value="missing"{% if f.cv == 'missing' %} selected{% endif %}>missing</option>
+      </select></label>
+      <div class="checks"><label><input type="checkbox" name="interview" value="1"{{ ' checked' if f.interview }}> upcoming interview only</label></div>{% endcall %}
+    </div>
+    <label class="field fsort"><span class="field-label">Sort</span><select name="sort">
+      {% for value, label in sorts %}<option value="{{ value }}"{% if f.sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label>
+    <nav class="view-switch" aria-label="View">
+      <a href="{{ view_urls.board }}"{% if view == 'board' %} aria-current="true"{% endif %}>BOARD</a>
+      <a href="{{ view_urls.list }}"{% if view == 'list' %} aria-current="true"{% endif %}>LIST</a>
+    </nav>
+  </div>
+  <noscript><button class="btn" type="submit">FILTER</button></noscript>
+</form>
+<div class="factive">
+  <p class="count muted" id="app-count">{{ shown }} of {{ total }} application{{ '' if total == 1 else 's' }}</p>
+  {% if pills %}
+  <ul class="pills" aria-label="Active filters">
+    {%- for label, remove in pills %}
+    <li><a class="pill" href="{{ remove }}" aria-label="Remove filter: {{ label }}">{{ label }} <span aria-hidden="true">×</span></a></li>
+    {%- endfor %}
+  </ul>
+  <a class="reset" href="{{ reset_url }}" data-reset-apps>Clear all</a>
+  {% endif %}
+</div>

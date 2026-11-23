@@ -1,0 +1,255 @@
+{% macro chip(c) -%}
+<li><label class="chip{{ ' mine' if c.mine }}{{ ' chip-empty' if not c.count }}"><input type="checkbox" name="stack" value="{{ c.key }}"{{ ' checked' if c.on }}><span class="chip-name">{{ c.label }}</span><span class="chip-count">{{ c.count }}</span></label></li>
+{%- endmacro %}
+{% macro member_row(m) %}
+        <li class="member status-{{ m.status }}{% if m.id == selected_id %} selected{% endif %}"{% if m.id == selected_id %} aria-current="true"{% endif %}>
+          <div class="m-main">
+            <div class="title-line">
+              {% if m.status == 'new' %}<span class="unread-dot" role="img" aria-label="Unread" title="Unread"></span>{% endif %}
+              {% if m.is_new and m.status == 'new' %}<span class="tag new">NEW</span>{% endif %}
+              <a class="m-title" href="/jobs/{{ m.id }}?back={{ current_url_q }}" data-job-id="{{ m.id }}">{{ m.title }}</a>
+              {% if m.status == 'applied' %}<span class="tag state-applied">✓ APPLIED</span>{% elif m.status == 'discarded' %}<span class="tag state-discarded">DISCARDED</span>{% endif %}
+              <span class="tag src">{{ m.site }}</span>
+            </div>
+            <div class="meta muted">{{ m.company or 'Unknown company' }}{% if m.location %} · {{ m.location }}{% endif %} · {% if m.date_posted %}posted {{ m.date_posted }}{% else %}first seen {{ m.first_seen_at[:10] }}{% endif %}</div>
+          </div>
+          <form class="pin" method="post" action="/jobs/{{ m.id }}/pin">
+            <input type="hidden" name="next" value="{{ current_url }}">
+            <input type="hidden" name="pinned" value="1">
+            <button class="btn small" type="submit" title="Pin to the top" aria-label="Pin {{ m.title }}">PIN</button>
+          </form>
+          <form class="status" method="post" action="/jobs/{{ m.id }}/status">
+            <input type="hidden" name="next" value="{{ current_url }}">
+            <select name="status" aria-label="Status of {{ m.title }} ({{ m.site }})" onchange="this.form.submit()">
+              {% for s in statuses %}<option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+            <noscript><button class="btn">SAVE</button></noscript>
+          </form>
+        </li>
+{%- endmacro %}
+{% macro job_row(job) %}
+  <li class="job status-{{ job.status }}{{ ' group-unread' if job.status != 'new' and job.unread_members }}{% if job.id == selected_id %} selected{% endif %}"{% if job.id == selected_id %} aria-current="true"{% endif %}>
+    <div class="main">
+      <div class="title-line">
+        {% if job.status == 'new' %}<span class="unread-dot" role="img" aria-label="Unread" title="Unread"></span>{% elif job.unread_members %}<span class="unread-dot" role="img" aria-label="Unread posting in this group" title="Unread posting in this group"></span>{% endif %}
+        {% if job.is_new and job.status == 'new' %}<span class="tag new">NEW</span>{% endif %}
+        <a class="title" href="/jobs/{{ job.id }}?back={{ current_url_q }}" data-job-id="{{ job.id }}">{{ job.title }}</a>
+        {% if job.status == 'applied' %}<span class="tag state-applied">✓ APPLIED</span>{% elif job.status == 'discarded' %}<span class="tag state-discarded">DISCARDED</span>{% endif %}
+        {% if job.work_mode %}<span class="tag mode mode-{{ job.work_mode }}">{{ job.work_mode | upper }}</span>{% endif %}
+        {% if job.dup_group and job.dup_count > 1 and not job.members %}<span class="tag dup" title="Same company and similar title">possible duplicate ×{{ job.dup_count }}</span>{% endif %}
+      </div>
+      <div class="meta muted">
+        {{ job.company or 'Unknown company' }} · {{ job.location or '—' }} · {{ job.site }}{% if job.date_posted %} · posted {{ job.date_posted }}{% endif %}
+      </div>
+      {% if job.stack_list %}
+      <ul class="stack">{% for s, mine in job.stack_tags %}{% if mine %}<li class="mine" title="In my stack">{{ s }}</li>{% else %}<li>{{ s }}</li>{% endif %}{% endfor %}{% if my_stack_size and job.match_count %}<li class="match" title="Techs of my stack this offer mentions">{{ job.match_count }}/{{ my_stack_size }} match</li>{% endif %}</ul>
+      {% endif %}
+    </div>
+    <div class="salary">
+      {% if job.has_salary %}
+        <span>{{ job.salary_text }}</span>
+        <span class="muted basis">{{ job.basis_text }}</span>
+      {% else %}
+        <span class="muted">not published</span>
+      {% endif %}
+    </div>
+    <form class="pin" method="post" action="/jobs/{{ job.id }}/pin">
+      <input type="hidden" name="next" value="{{ current_url }}">
+      <input type="hidden" name="pinned" value="{{ '0' if job.pinned_at else '1' }}">
+      <button class="btn small" type="submit" title="{{ 'Unpin' if job.pinned_at else 'Pin to the top' }}" aria-label="{{ 'Unpin' if job.pinned_at else 'Pin' }} {{ job.title }}">{{ 'UNPIN' if job.pinned_at else 'PIN' }}</button>
+    </form>
+    <form class="status" method="post" action="/jobs/{{ job.id }}/status">
+      <input type="hidden" name="next" value="{{ current_url }}">
+      <select name="status" aria-label="Status of {{ job.title }}" onchange="this.form.submit()">
+        {% for s in statuses %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn">SAVE</button></noscript>
+    </form>
+    {% if job.members %}
+    <details class="dups"{% if selected_id and selected_id in (job.members | map(attribute='id') | list) %} open{% endif %}>
+      <summary><span class="dups-count">{{ job.members | length }} more posting{{ '' if job.members | length == 1 else 's' }}</span><span class="dups-sites"> · {{ job.member_sites | join(', ') }}</span>{% if job.unread_members %}<span class="dups-unread"> · {{ job.unread_members }} unread</span>{% endif %}<span class="sr-only"> (possible duplicates of {{ job.title }})</span></summary>
+      <ul class="members">
+{%- for m in job.members %}{{ member_row(m) }}{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </li>
+{% endmacro -%}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if pane_job %}{{ pane_job.title }} · {% endif %}job_finder</title>
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  {% include "_head_meta.html" %}
+</head>
+<body>
+{% set active_nav = "jobs" %}
+{% include "_header.html" %}
+{% if config_error %}<p class="notice config-error" role="alert">{{ config_error }}</p>{% endif %}
+<section class="search-panel" id="search-panel" aria-label="Search">
+  <div id="search-idle" class="sp-main">
+    <div class="sp-status">
+      <p id="search-last" class="sp-when"{% if running %} hidden{% endif %}>{{ panel.when }}{% if panel.today %} <span class="badge badge-today">today ✓</span>{% endif %}</p>
+      <p id="search-running" class="sp-when"{% if not running %} hidden{% endif %}>Search in progress…</p>
+      {% if panel.outcome %}{% set o = panel.outcome %}
+      <div id="search-outcome-box"{% if running %} hidden{% endif %}>
+        <p class="search-outcome {{ o.kind }}"{% if o.kind == 'failed' %} role="alert"{% endif %}>{{ o.headline }}</p>
+        {% if o.hint %}<p class="sp-hint muted">{{ o.hint }}</p>{% endif %}
+        {% if o.details %}<details class="search-details"><summary>details</summary><pre>{{ o.details }}</pre></details>{% endif %}
+      </div>
+      {% endif %}
+      <p id="search-message" class="search-message error" role="alert" hidden></p>
+    </div>
+    <button id="search-btn" class="btn btn-primary" {% if running %}disabled aria-busy="true"{% endif %}
+            data-searched-today="{{ '1' if panel.today else '' }}">
+      {{ 'SEARCHING…' if running else 'SEARCH' }}
+    </button>
+  </div>
+  <div id="search-confirm" class="sp-confirm" role="group" aria-labelledby="search-confirm-text" hidden>
+    <p id="search-confirm-text" class="sp-confirm-text" tabindex="-1">{% if panel.today %}You already searched today at {{ panel.last_time }}. Search again? It only covers what was posted since then.{% endif %}</p>
+    <div class="sp-actions">
+      <button id="search-confirm-yes" class="btn btn-primary" type="button">SEARCH AGAIN</button>
+      <button id="search-confirm-no" class="btn" type="button">CANCEL</button>
+    </div>
+  </div>
+  <p id="search-live" class="sr-only" role="status" aria-live="polite"></p>
+</section>
+
+<div class="results-wrap">
+<div id="results-area" class="results-area"{% if running %} inert aria-busy="true"{% endif %}>
+<form class="filters" method="get" action="/" data-autosubmit>
+  <div class="filters-head">
+    <h2 class="filters-title">FILTERS</h2>
+    {% if has_filters %}<a class="reset" href="/" data-reset-filters>Reset filters</a>{% endif %}
+  </div>
+  <label class="field field-q"><span class="field-label">Search</span><input type="search" name="q" placeholder="title, company, text" aria-label="Search title, company or description" value="{{ f.q or '' }}"></label>
+  <label class="field"><span class="field-label">Status</span><select name="status">
+    <option value="open" {% if status_filter == 'open' %}selected{% endif %}>open</option>
+    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>all statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select></label>
+  <label class="field"><span class="field-label">Source</span><select name="site">
+    <option value="">all sources</option>
+    {% for s in source_options %}<option value="{{ s }}" {% if f.site == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select></label>
+  <label class="field"><span class="field-label">Currency</span><select name="currency">
+    <option value="">any currency</option>
+    {% for c in ['MXN', 'USD'] %}<option value="{{ c }}" {% if f.currency == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select></label>
+  <fieldset class="field field-modes"><legend class="field-label">Work mode</legend><ul class="chips">
+    {%- for value, label in [('remote', 'remote'), ('hybrid', 'hybrid'), ('onsite', 'onsite'), ('unknown', 'not specified')] %}
+    <li><label class="toggle chip"><input type="checkbox" name="mode" value="{{ value }}"{{ ' checked' if value in (f.mode or []) }}><span class="chip-name">{{ label }}</span></label></li>
+    {%- endfor %}
+  </ul></fieldset>
+  <label class="field field-day"><span class="field-label">First seen</span><select name="day">
+    <option value="">any day</option>
+    {% for d in days %}<option value="{{ d.day }}" {% if f.day == d.day %}selected{% endif %}>{{ d.day }} ({{ d.n }})</option>{% endfor %}
+  </select></label>
+  <label class="field"><span class="field-label">Posted</span><select name="posted_weeks">
+    <option value="">any time</option>
+    {% for w in posted_weeks %}<option value="{{ w }}"{% if f.posted_weeks == w %} selected{% endif %}>last {{ w }} weeks</option>{% endfor %}
+  </select></label>
+  {% if my_stack_size %}
+  <label class="field"><span class="field-label">Sort</span><select name="sort">
+    <option value="match" {% if sort_filter == 'match' %}selected{% endif %}>best match</option>
+    <option value="newest" {% if sort_filter == 'newest' %}selected{% endif %}>newest</option>
+  </select></label>
+  {% endif %}
+  <fieldset class="field field-checks">
+    <legend>Options</legend>
+    <div class="checks">
+      <label><input type="checkbox" name="with_salary" value="1" {% if f.with_salary %}checked{% endif %}> with salary</label>
+      <label><input type="checkbox" name="only_new" value="1" {% if f.only_new %}checked{% endif %}> only new</label>
+    </div>
+  </fieldset>
+  {% if chips.main or chips.more %}
+  <fieldset class="stack-filter">
+    <legend>Stack{% if selected_stack %} <a class="clear-stack" href="{{ clear_stack_url }}">clear</a>{% endif %}</legend>
+    <ul class="chips">
+      {% for c in chips.main %}{{ chip(c) }}{% endfor %}
+    </ul>
+    {% if chips.more %}
+    <details class="chips-more" {% if chips.more_open %}open{% endif %}>
+      <summary>more ({{ chips.more | length }})</summary>
+      <ul class="chips">{% for c in chips.more %}{{ chip(c) }}{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </fieldset>
+  {% endif %}
+  <noscript><button class="btn" type="submit">FILTER</button></noscript>
+</form>
+
+<form class="export" method="get" action="/export">
+  <span class="muted">export offers first seen on</span>
+  <select name="day" required aria-label="Day to export">
+    {% for d in days %}<option value="{{ d.day }}" {% if f.day == d.day %}selected{% endif %}>{{ d.day }} ({{ d.n }})</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit" {% if not days %}disabled{% endif %}>EXPORT .MD</button>
+</form>
+
+<div class="split" id="split">
+<div class="split-list">
+{% if pinned %}
+<section class="pinned" id="pinned">
+  <h2>PINNED</h2>
+  <ol class="jobs">
+  {% for job in pinned %}{{ job_row(job) }}{% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<p class="count muted">{{ total }} offer{{ '' if total == 1 else 's' }}{% if postings > total %} ({{ postings }} postings){% endif %}</p>
+
+<ol class="jobs" id="job-list">
+{% for job in jobs %}{{ job_row(job) }}
+{% else %}
+  <li class="empty muted">
+    {% if f.keys() | reject('equalto', 'page') | list %}
+    No offers match these filters. <a href="/" data-reset-filters>Clear all filters</a> or relax one of them.
+    {% else %}
+    No offers yet. Press SEARCH to look for new ones.
+    {% endif %}
+  </li>
+{% endfor %}
+</ol>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if prev_url %}<a class="btn" rel="prev" href="{{ prev_url }}">‹ PREV</a>{% else %}<span class="btn" aria-disabled="true">‹ PREV</span>{% endif %}
+  <span class="muted">Page {{ page }} of {{ pages }}</span>
+  {% if next_url %}<a class="btn" rel="next" href="{{ next_url }}">NEXT ›</a>{% else %}<span class="btn" aria-disabled="true">NEXT ›</span>{% endif %}
+</nav>
+{% endif %}
+</div>
+{% set pane_empty %}
+  <div class="pane-empty">
+    <p class="pane-empty-title">Select a job to see its description</p>
+    <p class="muted">Click a title in the list. Use j / k or the arrow keys to move, Esc to close.</p>
+  </div>
+{% endset %}
+<aside class="pane" id="job-pane" aria-label="Job description" tabindex="-1">
+{% if pane_job %}
+{% with job=pane_job, in_pane=true, next_url=pane_next_url, close_url=pane_close_url, back_q=pane_back_q %}{% include "_job_pane.html" %}{% endwith %}
+{% else %}{{ pane_empty }}{% endif %}
+</aside>
+<template id="pane-empty-tpl">{{ pane_empty }}</template>
+</div>
+</div>
+<div id="search-overlay" class="search-overlay"{% if not running %} hidden{% endif %}>
+  <div class="overlay-card" role="group" aria-label="Search progress" tabindex="-1">
+    <div class="pixel-loader" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <p id="search-step" class="overlay-step">starting…</p>
+    <p id="search-progress-text" class="overlay-detail muted">Searching LinkedIn and Indeed</p>
+    <div id="search-meter" class="meter" role="progressbar" aria-label="Search progress"
+         aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+      <span class="meter-done"></span><span class="meter-active"></span>
+    </div>
+    <p class="overlay-note muted">Filters and offers are locked until it finishes. The menu still works.</p>
+  </div>
+</div>
+</div>
+<script src="{{ asset('app.js') }}"></script>
+</body>
+</html>

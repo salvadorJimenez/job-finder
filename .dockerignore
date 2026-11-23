@@ -1,0 +1,16 @@
+.venv
+.git
+.pytest_cache
+.DS_Store
+**/__pycache__
+*.egg-info
+data
+exports
+tests
+scripts
+odd
+.atl
+config.toml
+profile
+resumes
+.codegraph

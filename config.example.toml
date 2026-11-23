@@ -1,0 +1,53 @@
+# job-finder configuration. Copy this file to config.toml and edit it:
+#   cp config.example.toml config.toml
+# config.toml is private (git ignores it). The [search] section is read on every
+# search, so edits apply without a restart; the other sections load when the server starts.
+
+[search]
+# Words to search for. Every term runs on every site and in every location below.
+# More terms mean more requests, so keep the list short.
+terms = [
+  "software engineer",
+  "backend developer",
+  "frontend developer",
+]
+# Job boards to query. Supported: "linkedin", "indeed", "glassdoor".
+sites = ["linkedin", "indeed", "glassdoor"]
+# Where to look. One place, or a list searched in order (every term runs in each place):
+#   location = ["Monterrey, Nuevo León, Mexico", "Mexico"]
+# Each extra place repeats every request, so keep the list short.
+location = "Mexico"
+# Country for Indeed and Glassdoor. Change it to search elsewhere, for example
+# "Colombia", "Argentina", "Chile" or "Spain", and change `location` to match.
+country_indeed = "Mexico"
+# Results requested per term and site. Higher values mean more requests and
+# a higher chance of LinkedIn rate limiting.
+results_wanted = 30
+# How many days back the very first search looks.
+first_search_days = 7
+# Extra hours added to the "since last search" window; duplicates are absorbed.
+overlap_hours = 6
+# Pause between requests to the same site, in seconds. Sites rate limit scrapers:
+# if searches start failing, raise this value or lower results_wanted.
+pause_seconds = 30
+
+[profile]
+# Your stack, by the names the page shows for each technology. The list puts jobs
+# matching more of these first and highlights them. Leave it empty to turn that off.
+stack = ["Python", "Django", "TypeScript", "React", "PostgreSQL"]
+
+[goal]
+# Applications to send on every weekday (Monday to Friday). Shown in the header of every
+# page, with your streak, and in the activity calendar on the Applications board.
+# 0 turns it off.
+daily = 5
+
+[storage]
+# Where things are kept, relative to this file's folder.
+database = "data/jobs.db"      # the SQLite database with every offer and application
+exports_dir = "exports"        # where `job-finder export` writes its Markdown files
+
+[web]
+# Address and port of the local page. Keep 127.0.0.1 so it stays private to this machine.
+host = "127.0.0.1"
+port = 8000

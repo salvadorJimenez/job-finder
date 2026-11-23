@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ a.title }}{% endblock %}
+{% block body_attrs %} class="medium"{% endblock %}
+{% block content %}
+{% macro phase_options(selected_id, with_placeholder=False) -%}
+  {% if with_placeholder %}<option value="" selected disabled>Unassigned</option>{% endif %}
+  {% for p in phases %}<option value="{{ p.id }}"{% if p.id == selected_id %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+{%- endmacro %}
+{# the CV form: a plain multipart POST (file input + ATTACH work without JS); app.js adds drag and drop, auto-upload and errors #}
+{% macro cv_form() -%}
+  <form class="cv-form" method="post" action="/applications/{{ a.id }}/cv" enctype="multipart/form-data" data-cv-form>
+    <div class="dropzone" data-dropzone>
+      <p class="dz-title">Drop your CV here</p>
+      <p class="muted dz-hint">PDF or DOCX · up to 10 MB · or browse</p>
+      <input type="file" name="file" accept=".pdf,.docx" aria-label="Upload a CV (PDF or DOCX, up to 10 MB)">
+    </div>
+    {% if cvs %}
+    <details class="cv-pick">
+      <summary>use one you uploaded</summary>
+      <select name="cv_id" aria-label="Previously uploaded CV">
+        <option value="">pick a previous CV…</option>
+        {% for c in cvs %}<option value="{{ c.id }}"{% if a.cv and a.cv.id == c.id %} selected{% endif %}>{{ c.original_name }}</option>{% endfor %}
+      </select>
+    </details>
+    {% endif %}
+    <button class="btn" type="submit" data-attach>ATTACH</button>
+  </form>
+{%- endmacro %}
+{% macro delete_entry(e) -%}
+  <form class="entry-delete" method="post" action="/applications/{{ a.id }}/entries/{{ e.id }}/delete">
+    <button class="btn small quiet" type="submit" data-confirm aria-label="Delete entry from {{ e.when }}">DELETE</button>
+  </form>
+{%- endmacro %}
+{% set page_url = '/applications/%d' % a.id %}
+{% set note_count = a.entries | selectattr('kind', 'equalto', 'note') | list | length %}
+
+<nav class="detail-nav">
+  <a class="back" href="/applications" data-keep-apps>‹ Back to board</a>
+</nav>
+
+<main class="detail application">
+  <h2 class="detail-title">{{ a.title }}</h2>
+  <div class="meta muted">{{ a.company or 'Unknown company' }}</div>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+  <div class="app-layout">
+    <section class="app-timeline" aria-labelledby="timeline-title">
+      <h3 class="section-title" id="timeline-title">TIMELINE <span class="muted count-inline">{{ a.entries | length }}</span></h3>
+
+      <details class="composer"{% if not note_count %} open{% endif %}>
+        <summary class="btn">+ ADD ENTRY</summary>
+        <form class="entry-form entry-add" method="post" action="/applications/{{ a.id }}/entries">
+          <label class="field"><span class="field-label">Phase</span>
+            <select name="phase_id" required>{{ phase_options(a.phase_id) }}</select></label>
+          <label class="field"><span class="field-label">When</span>
+            <input type="datetime-local" name="happened_at" step="1" value="{{ now_input }}" required></label>
+          <label class="field field-notes"><span class="field-label">Notes</span>
+            <textarea name="notes" rows="3" maxlength="5000" data-autogrow placeholder="What happened? Questions, next steps, links…"></textarea></label>
+          <div class="form-actions">
+            <button class="btn" type="submit">ADD</button>
+            <button class="btn quiet" type="button" data-composer-cancel hidden>CANCEL</button>
+          </div>
+        </form>
+      </details>
+
+      <ol class="timeline">
+        {% if not note_count %}
+        <li class="tl-empty">No notes yet. Log your first interview, call or follow-up with + ADD ENTRY.</li>
+        {% endif %}
+        {% set ns = namespace(day=none, upcoming=false) %}
+        {% for e in a.entries %}
+        {% if e.upcoming %}
+          {% if not ns.upcoming %}<li class="tl-label tl-label-upcoming">UPCOMING</li>{% set ns.upcoming = true %}{% endif %}
+        {% elif e.day != ns.day %}
+          <li class="tl-label">{{ e.day_label }}</li>{% set ns.day = e.day %}
+        {% endif %}
+        {% if e.kind == 'note' %}
+        <li class="entry entry-note"{% if e.upcoming %} data-upcoming{% endif %}>
+          <div class="entry-head">
+            <span class="entry-phase">{{ e.phase_name }}</span>
+            <time class="entry-time" datetime="{{ e.input_value }}">{{ e.short if e.upcoming else e.time }}</time>
+          </div>
+          {% if e.notes | trim %}<p class="entry-notes">{{ e.notes | trim }}</p>{% endif %}
+          <details class="entry-edit">
+            <summary class="btn small quiet" aria-label="Edit entry from {{ e.when }}">EDIT</summary>
+            <form class="entry-form" method="post" action="/applications/{{ a.id }}/entries/{{ e.id }}">
+              <select name="phase_id" aria-label="Phase" required>
+                {% if e.phase_name not in phases | map(attribute='name') | list %}<option value="keep" selected>{{ e.phase_name }} (removed)</option>{% endif %}
+                {% for p in phases %}<option value="{{ p.id }}"{% if p.name == e.phase_name %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+              </select>
+              <input type="datetime-local" name="happened_at" step="1" value="{{ e.input_value }}" aria-label="Date and time" required>
+              <textarea name="notes" rows="3" maxlength="5000" aria-label="Notes" data-autogrow>
+{{ e.notes }}</textarea>
+              <div class="form-actions"><button class="btn small" type="submit">SAVE</button></div>
+            </form>
+          </details>
+          {{ delete_entry(e) }}
+        </li>
+        {% else %}
+        <li class="entry entry-move">
+          <div class="entry-head">
+            <span class="entry-move-text"><span aria-hidden="true">→</span> <span class="sr-only">{{ 'Moved to ' if (e.notes or '').startswith('Moved to') else 'Phase ' }}</span>{{ e.phase_name }}</span>
+            <time class="entry-time" datetime="{{ e.input_value }}">{{ e.time }}</time>
+          </div>
+          {{ delete_entry(e) }}
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ol>
+    </section>
+
+    <aside class="app-side">
+      <section class="app-summary" aria-label="Summary">
+        <form class="status" method="post" action="/applications/{{ a.id }}/move">
+          <input type="hidden" name="next" value="{{ page_url }}">
+          <label class="field"><span class="field-label">Phase</span>
+            <select name="phase_id" onchange="this.form.submit()">{{ phase_options(a.phase_id, not a.phase_id) }}</select></label>
+          <noscript><button class="btn small" type="submit">MOVE</button></noscript>
+        </form>
+        <form class="status" method="post" action="/applications/{{ a.id }}/outcome">
+          <label class="field"><span class="field-label">Outcome</span>
+            <select name="outcome" onchange="this.form.submit()">
+              {% for o in outcomes %}<option value="{{ o }}"{% if o == a.outcome %} selected{% endif %}>{{ o }}</option>{% endfor %}
+            </select></label>
+          <noscript><button class="btn small" type="submit">SAVE</button></noscript>
+        </form>
+        <p class="summary-line"><span class="field-label">Applied</span> {{ a.applied_on }}</p>
+        <p class="summary-links">
+          <a href="/jobs/{{ a.job_id }}">Job details</a>
+          {% if a.posting_url %}<a class="btn small" href="{{ a.posting_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>{% endif %}
+        </p>
+      </section>
+
+      <section class="app-cv" aria-labelledby="cv-title">
+        <h3 class="section-title" id="cv-title">CV SENT</h3>
+        {% if a.cv %}
+        {% set is_pdf = a.cv.original_name.lower().endswith('.pdf') %}
+        {% set cv_href = '/cvs/%d/view' % a.cv.id if is_pdf else '/cvs/%d' % a.cv.id %}
+        {% if is_pdf %}
+        {# small first-page thumbnail drawn by the browser's own PDF viewer; the button opens the modal below (app.js) #}
+        <button class="cv-preview" type="button" data-cv-open aria-label="Preview {{ a.cv.original_name }}">
+          <span class="cv-fallback" aria-hidden="true"><span class="cv-fallback-icon">▤</span><span class="cv-fallback-name">{{ a.cv.original_name }}</span></span>
+          <iframe class="cv-thumb" src="{{ cv_href }}#toolbar=0&amp;navpanes=0&amp;scrollbar=0&amp;view=FitH" title="First page of {{ a.cv.original_name }}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>
+        </button>
+        {% endif %}
+        <p class="cv-current">
+          <a class="cv-name" href="{{ cv_href }}"{% if is_pdf %} target="_blank" rel="noopener" data-cv-open{% endif %}>{{ a.cv.original_name }}</a>
+          {% if is_pdf %}<a class="btn small" href="{{ cv_href }}" target="_blank" rel="noopener" data-cv-open>OPEN</a>{% else %}<a class="btn small" href="{{ cv_href }}">DOWNLOAD</a>{% endif %}
+        </p>
+        <details class="cv-replace">
+          <summary>Replace</summary>
+          {{ cv_form() }}
+        </details>
+        {% else %}
+        <p class="muted">No CV attached yet.</p>
+        {{ cv_form() }}
+        {% endif %}
+        <p class="cv-status" role="status" data-cv-status></p>
+      </section>
+    </aside>
+  </div>
+</main>
+
+{% if a.cv and a.cv.original_name.lower().endswith('.pdf') %}
+{# the full viewer: its iframe gets a src only while open, so the PDF is not loaded twice up front #}
+<dialog class="cv-modal" data-cv-modal aria-labelledby="cv-modal-title">
+  <div class="cv-modal-box">
+    <header class="cv-modal-head">
+      <h3 class="cv-modal-title" id="cv-modal-title">{{ a.cv.original_name }}</h3>
+      <a class="btn small" href="/cvs/{{ a.cv.id }}/view" target="_blank" rel="noopener">Open in new tab ↗</a>
+      <button class="btn small" type="button" data-cv-close>CLOSE</button>
+    </header>
+    <iframe class="cv-modal-frame" data-src="/cvs/{{ a.cv.id }}/view" title="{{ a.cv.original_name }}"></iframe>
+  </div>
+</dialog>
+{% endif %}
+
+<div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
+  <div class="drop-card"><p class="drop-title">Drop to attach CV</p><p class="muted">PDF or DOCX · up to 10 MB</p></div>
+</div>
+{% endblock %}

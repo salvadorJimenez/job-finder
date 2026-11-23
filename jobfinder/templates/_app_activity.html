@@ -1,0 +1,42 @@
+{# Activity calendar: columns = weeks, rows = Mon..Sun, oldest week on the left. Each active day links to the day filter. #}
+<details class="activity" open>
+  <summary>
+    <h3 class="activity-title">ACTIVITY</h3>
+    {% if history %}<span class="activity-totals"><span>this week <b>{{ history.week }}</b></span> · <span title="Last 30 days">30 days <b>{{ history.total }}</b></span> · <span title="Weekdays that met the goal; today is left out while it is still short">days met <b>{{ history.met }}/{{ history.weekdays }}</b></span></span>{% endif %}
+    <span class="activity-toggle" aria-hidden="true"></span>
+  </summary>
+  <div class="activity-body">
+    <div class="cal-scroll" role="region" aria-label="Activity calendar by week, scrolls sideways" tabindex="0">
+      <div class="cal" style="--weeks: {{ calendar.weeks }}">
+        <ol class="cal-months" aria-hidden="true">
+          {%- for m in calendar.months %}<li style="grid-column: {{ m.col }}">{{ m.label }}</li>{% endfor -%}
+        </ol>
+        <ol class="cal-weekdays" aria-hidden="true">
+          <li>Mon</li><li></li><li>Wed</li><li></li><li>Fri</li><li></li><li></li>
+        </ol>
+        <ol class="cal-grid">
+          {%- for c in calendar.cells %}
+          <li class="cal-day{{ ' cal-weekend' if c.weekend }}{{ ' cal-today' if c.today }}{{ ' cal-future' if c.future }}{{ ' cal-upcoming' if c.upcoming }}{{ ' cal-selected' if f.day == c.date }}" data-date="{{ c.date }}"{% if c.future %} aria-hidden="true"{% endif %}>
+            {%- if not c.future -%}
+            {%- set marks -%}{% if c.rejections %}<i class="mk mk-rej" aria-hidden="true"></i>{% endif %}{% if c.process_notes > c.rejections %}<i class="mk mk-note" aria-hidden="true"></i>{% endif %}{%- endset -%}
+            {%- if c.active -%}
+            <a class="cal-cell" data-level="{{ c.level }}" href="{{ day_url(c.date) }}" aria-label="{{ c.label }}" title="{{ c.label }}"{% if f.day == c.date %} aria-current="true"{% elif c.today %} aria-current="date"{% endif %}>{{ marks }}</a>
+            {%- else -%}
+            <span class="cal-cell" data-level="{{ c.level }}" role="img" aria-label="{{ c.label }}" title="{{ c.label }}"{% if c.today %} aria-current="date"{% endif %}></span>
+            {%- endif -%}
+            {%- endif -%}
+          </li>
+          {%- endfor %}
+        </ol>
+      </div>
+    </div>
+    <div class="cal-legend">
+      <span class="cal-scale">Less {% for l in range(5) %}<i class="cal-key" data-level="{{ l }}"></i>{% endfor %} More</span>
+      <span class="cal-marks">
+        <span><i class="cal-key" data-level="2"><i class="mk mk-note"></i></i> interview or process note</span>
+        <span><i class="cal-key" data-level="2"><i class="mk mk-rej"></i></i> rejection</span>
+        <span><i class="cal-key cal-key-upcoming" data-level="0"></i> upcoming interview</span>
+      </span>
+    </div>
+  </div>
+</details>

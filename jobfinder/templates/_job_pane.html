@@ -1,0 +1,67 @@
+<div class="job-view status-{{ job.status }}" data-job-id="{{ job.id }}" data-status="{{ job.status }}">
+  <header class="job-head">
+  {% if in_pane %}<div class="pane-bar"><a class="pane-close" href="{{ close_url }}" data-pane-close>✕ Close</a></div>{% endif %}
+  <div class="title-line">
+    <h2 class="detail-title">{{ job.title }}</h2>
+    {% if job.status == 'applied' %}<span class="tag state-applied">✓ APPLIED</span>{% elif job.status == 'discarded' %}<span class="tag state-discarded">DISCARDED</span>{% endif %}
+    {% if job.work_mode %}<span class="tag mode mode-{{ job.work_mode }}">{{ job.work_mode | upper }}</span>{% endif %}
+  </div>
+  <div class="meta muted">{{ job.company or 'Unknown company' }} · {{ job.location or '—' }} · {{ job.site }}</div>
+
+  <div class="actions">
+    <form class="pin" method="post" action="/jobs/{{ job.id }}/pin">
+      <input type="hidden" name="next" value="{{ next_url }}">
+      <input type="hidden" name="pinned" value="{{ '0' if job.pinned_at else '1' }}">
+      <button class="btn" type="submit" title="{{ 'Unpin' if job.pinned_at else 'Pin to the top' }}">{{ 'UNPIN' if job.pinned_at else 'PIN' }}</button>
+    </form>
+    <form class="status" method="post" action="/jobs/{{ job.id }}/status">
+      <input type="hidden" name="next" value="{{ next_url }}">
+      <select name="status" aria-label="Status" onchange="this.form.submit()">
+        {% for s in statuses %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn">SAVE</button></noscript>
+    </form>
+    <span class="copy-job">
+      <button class="btn" type="button" data-copy-job title="Copy the job as plain text, to paste into the resume prompt">COPY FOR RESUME</button>
+      <span class="sr-only" role="status" aria-live="polite" data-copy-status></span>
+      <textarea class="copy-source" data-copy-text readonly tabindex="-1" aria-hidden="true" rows="8">{{ job.copy_text }}</textarea>
+    </span>
+    {% if in_pane %}
+    {% if job.posting_url %}<a class="btn" href="{{ job.posting_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>{% endif %}
+    <a class="btn" href="/jobs/{{ job.id }}?back={{ back_q }}">Open full page</a>
+    {% endif %}
+  </div>
+  </header>
+
+  <dl class="facts">
+    <dt>Salary</dt>
+    <dd>
+      {% if job.has_salary %}{{ job.salary_text }} <span class="muted">· {{ job.basis_text }}</span>
+      {% else %}<span class="muted">not published</span> <span class="muted">· {{ job.basis_text }}</span>{% endif %}
+    </dd>
+    <dt>Posted</dt><dd>{{ job.date_posted or '—' }}</dd>
+    <dt>First seen</dt><dd>{{ (job.first_seen_at or '')[:10] or '—' }}</dd>
+    <dt>Stack</dt>
+    <dd>
+      {% if job.stack_tags %}<ul class="stack">{% for s, mine in job.stack_tags %}{% if mine %}<li class="mine" title="In my stack">{{ s }}</li>{% else %}<li>{{ s }}</li>{% endif %}{% endfor %}</ul>{% else %}<span class="muted">—</span>{% endif %}
+    </dd>
+  </dl>
+
+  {% if job.group_members %}
+  <section class="pane-dups" aria-label="Possible duplicates">
+    <h3 class="mini-title">Possible duplicates <span class="muted">· same company, similar title</span></h3>
+    <ul>
+      {%- for m in job.group_members %}
+      <li class="status-{{ m.status }}"><a href="/jobs/{{ m.id }}?back={{ back_q }}" data-job-id="{{ m.id }}">{{ m.title }}</a> <span class="tag src">{{ m.site }}</span> <span class="muted">{{ m.company or 'Unknown company' }}{% if m.location %} · {{ m.location }}{% endif %}</span>{% if m.status == 'applied' %} <span class="tag state-applied">✓ APPLIED</span>{% elif m.status == 'discarded' %} <span class="tag state-discarded">DISCARDED</span>{% endif %}</li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="about">
+    <h3 class="section-title">About the job</h3>
+    <article class="description">
+      {% if job.description_html.strip() %}{{ job.description_html | safe }}{% else %}<p class="muted">No description available. Use “Open posting” to read it on the original site.</p>{% endif %}
+    </article>
+  </section>
+</div>

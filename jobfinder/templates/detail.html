@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ job.title }} · job_finder</title>
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  {% include "_head_meta.html" %}
+</head>
+<body>
+{% include "_header.html" %}
+
+<nav class="detail-nav">
+  <a class="back" href="{{ back }}">‹ Back to list</a>
+  {% if job.posting_url %}<a class="btn" href="{{ job.posting_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>{% endif %}
+</nav>
+
+<main class="detail">
+{% include "_job_pane.html" %}
+</main>
+<script src="{{ asset('app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Applications{% endblock %}
+{% block body_attrs %} class="wide"{% endblock %}
+{% block content %}
+<main class="board-page">
+  <div class="board-head">
+    <div class="board-heading">
+      <h2 class="section-title">APPLICATIONS</h2>
+      <p class="board-counts muted">{{ active }} active · {{ closed }} closed</p>
+    </div>
+    <div class="board-tools">
+      <a class="muted tool-link" href="{{ toggle_url }}">{{ 'Show closed' if only_open else 'Hide closed' }}</a>
+      <a class="muted tool-link" href="/applications/phases">Phases</a>
+      <a class="btn" href="/applications/new">ADD APPLICATION</a>
+    </div>
+  </div>
+
+  {% include "_app_activity.html" %}
+
+  {% if total == 0 %}
+  <p class="board-empty">No applications yet. Start by marking a job as applied in the <a href="/" data-keep-filters>list</a>, or <a href="/applications/new">add one manually</a>.</p>
+  {% else %}
+  {% include "_app_filters.html" %}
+  {% if not shown %}
+  <p class="board-empty">No applications match these filters. <a href="{{ reset_url }}" data-reset-apps>Clear all filters</a> or relax one of them.</p>
+  {% elif view == 'list' %}
+  {% include "_app_list.html" %}
+  {% else %}
+  {% include "_app_board.html" %}
+  {% endif %}
+  {% endif %}
+</main>
+{% endblock %}

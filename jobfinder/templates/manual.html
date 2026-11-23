@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Add application{% endblock %}
+{% block content %}
+<main class="manual">
+  <a class="back" href="/applications" data-keep-apps>‹ Back to board</a>
+  <h2 class="section-title">ADD APPLICATION</h2>
+  <p class="muted">For a job you found outside this tool. It is added to the first phase and listed with source <code>manual</code>.</p>
+  {% if errors %}
+  <ul class="errors error" role="alert">
+    {% for e in errors %}<li class="error-item">{{ e }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form class="manual-form" method="post" action="/applications/new">
+    <label><span>Title <span class="req">required</span></span>
+      <input type="text" name="title" value="{{ v.title }}" maxlength="200" required>
+    </label>
+    <label><span>Company <span class="req">required</span></span>
+      <input type="text" name="company" value="{{ v.company }}" maxlength="200" required>
+    </label>
+    <label>Link
+      <input type="url" name="link" value="{{ v.link }}" maxlength="2000" placeholder="https://…">
+    </label>
+    <label>Location
+      <input type="text" name="location" value="{{ v.location }}" maxlength="200">
+    </label>
+    <label>Work mode
+      <select name="work_mode">
+        <option value="">not specified</option>
+        {% for m in work_modes %}<option value="{{ m }}"{% if v.work_mode == m %} selected{% endif %}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Salary
+      <input type="text" name="salary" value="{{ v.salary }}" maxlength="200" placeholder="free text, e.g. MXN 90k net / month">
+    </label>
+    <label><span>Applied on <span class="req">required</span></span>
+      <input type="date" name="applied_at" value="{{ v.applied_at }}" required>
+    </label>
+    <button class="btn" type="submit">ADD APPLICATION</button>
+  </form>
+</main>
+{% endblock %}

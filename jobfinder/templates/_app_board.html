@@ -1,0 +1,34 @@
+<div class="board" id="board">
+  {% for col in columns %}
+  {% set n = col.cards | length %}
+  <section class="column{% if col['key'] == 'closed' %} column-closed{% endif %}{% if not n %} column-collapsed{% endif %}" role="group" aria-label="{{ col.name }}, {{ n }} application{{ '' if n == 1 else 's' }}" data-column="{{ col['key'] }}"{% if col.phase_id %} data-phase-id="{{ col.phase_id }}"{% endif %}{% if not n %} data-empty="true"{% endif %}>
+    <h3 class="column-title" title="{{ col.name }}"><span class="column-name">{{ col.name }}</span> <span class="count">{{ n }}</span></h3>
+    <div class="cards">
+      {% if not n %}<p class="column-empty muted">No applications</p>{% endif %}
+      {% for c in col.cards %}
+      <article class="card{% if col['key'] == 'closed' %} card-closed{% endif %}"{% if col['key'] != 'closed' %} draggable="true" data-app-id="{{ c.id }}"{% if c.phase_id %} data-phase-id="{{ c.phase_id }}"{% endif %}{% endif %}>
+        <a class="title" href="/applications/{{ c.id }}">{{ c.title }}</a>
+        <div class="card-meta muted">
+          <span class="company">{{ c.company or 'Unknown company' }}</span>
+          {% if c.work_mode %}<span class="tag mode mode-{{ c.work_mode }}">{{ c.work_mode | upper }}</span>{% endif %}
+          <span class="ago" title="{{ c.days_since }} day{{ '' if c.days_since == 1 else 's' }} since applied">{{ c.days_since }}d ago</span>
+        </div>
+        {% if col['key'] == 'closed' %}<div class="card-outcome muted">{{ c.outcome }}</div>{% endif %}
+        {% if c.next_interview %}<div class="next-interview" title="Next interview">Next: {{ c.next_interview }}</div>{% endif %}
+        {% if col['key'] != 'closed' %}
+        <form class="card-move" method="post" action="/applications/{{ c.id }}/move">
+          <input type="hidden" name="next" value="{{ current_url }}">
+          <span class="card-move-label" aria-hidden="true">Move to</span>
+          <select name="phase_id" aria-label="Move {{ c.title }} to phase" onchange="this.form.submit()">
+            {% if not c.phase_id %}<option value="" selected disabled>Unassigned</option>{% endif %}
+            {% for p in phases %}<option value="{{ p.id }}"{% if p.id == c.phase_id %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+          </select>
+          <noscript><button class="btn small" type="submit">MOVE</button></noscript>
+        </form>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>

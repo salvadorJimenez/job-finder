@@ -1,0 +1,17 @@
+# Keeps job-finder running in the background: docker compose up -d --build
+# Create config.toml first (cp config.example.toml config.toml): if the file is missing,
+# Docker creates a directory with that name for the bind mount and the app cannot start.
+services:
+  job-finder:
+    build: .
+    image: job-finder:latest
+    container_name: job-finder
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # this machine only, never your network
+    environment:
+      TZ: ${TZ:-America/Mexico_City}   # local dates for "today" and the streak; set TZ=... to change it
+    volumes:
+      - ./config.toml:/app/config.toml:ro   # edit it on the host; read on every search
+      - ./data:/app/data                    # database and CVs stay on the host
+      - ./exports:/app/exports

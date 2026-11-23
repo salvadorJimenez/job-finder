@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phases · job_finder</title>
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  {% include "_head_meta.html" %}
+</head>
+<body>
+{% set active_nav = "applications" %}
+{% include "_header.html" %}
+
+<main class="phases">
+  <a class="back" href="/applications" data-keep-apps>‹ Back to board</a>
+  <h2 class="section-title">PHASES</h2>
+  <p class="muted">Applications move through these phases, in this order. A phase with applications on it cannot be removed.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if phases %}
+  <ol class="phase-list">
+    {% for p in phases %}
+    <li class="phase">
+      <span class="phase-name">{{ p.name }}</span>
+      <span class="muted">{{ p.application_count }} application{{ '' if p.application_count == 1 else 's' }}</span>
+      <form class="phase-rename" method="post" action="/applications/phases/{{ p.id }}/rename">
+        <input type="text" name="name" value="{{ p.name }}" maxlength="{{ max_len }}" aria-label="Rename {{ p.name }}" required>
+        <button class="btn small" type="submit" aria-label="Save new name for {{ p.name }}">SAVE</button>
+      </form>
+      <form method="post" action="/applications/phases/{{ p.id }}/move">
+        <input type="hidden" name="direction" value="up">
+        <button class="btn small" type="submit" title="Move up" aria-label="Move {{ p.name }} up" {% if loop.first %}disabled{% endif %}>▲</button>
+      </form>
+      <form method="post" action="/applications/phases/{{ p.id }}/move">
+        <input type="hidden" name="direction" value="down">
+        <button class="btn small" type="submit" title="Move down" aria-label="Move {{ p.name }} down" {% if loop.last %}disabled{% endif %}>▼</button>
+      </form>
+      <form method="post" action="/applications/phases/{{ p.id }}/delete">
+        <button class="btn small" type="submit" aria-label="Remove {{ p.name }}">REMOVE</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">No phases yet. New applications will show as unassigned until you add one.</p>
+  {% endif %}
+
+  <form class="phase-add" method="post" action="/applications/phases">
+    <input type="text" name="name" maxlength="{{ max_len }}" placeholder="new phase name" aria-label="New phase name" required>
+    <button class="btn" type="submit">ADD PHASE</button>
+  </form>
+</main>
+<script src="{{ asset('app.js') }}"></script>
+</body>
+</html>
