@@ -36,7 +36,7 @@ Optional, only if you want them:
 ## Quickstart: local Python
 
 ```bash
-git clone <repository-url> job-finder
+git clone https://github.com/salvadorJimenez/job-finder.git
 cd job-finder
 python3 -m venv .venv
 .venv/bin/pip install -e .
