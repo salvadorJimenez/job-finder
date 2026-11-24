@@ -4,7 +4,24 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_CONFIG_PATH = Path("config.toml")
+# Where the config is looked for when --config is not given: the first one that exists wins.
+DEFAULT_CONFIG_PATHS = (Path("config.toml"), Path("config/config.toml"))
+CONFIG_FOLDER = "config"
+
+NO_CONFIG_HINT = (
+    "config file not found: looked for config.toml and config/config.toml. "
+    "Create it with: mkdir -p config && cp config.example.toml config/config.toml"
+)
+
+
+def resolve_config_path(explicit: Path | None = None) -> Path | None:
+    """The config file to use: an explicit path as is, else ./config.toml, else ./config/config.toml.
+
+    None means the default places hold no file. The folder layout exists so Docker can mount a
+    folder, which (unlike a single file) still shows the file after an editor replaces it."""
+    if explicit is not None:
+        return explicit
+    return next((p for p in DEFAULT_CONFIG_PATHS if p.is_file()), None)
 
 
 @dataclass(frozen=True)
@@ -39,17 +56,21 @@ class Config:
     daily_goal: int = 5        # applications per weekday; 0 turns the goal off
 
 
-def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
+def load_config(path: Path | None = None) -> Config:
+    """Read the config at `path`, or at the default place (see `resolve_config_path`) when None."""
+    if path is None:
+        path = resolve_config_path()
+        if path is None:
+            raise FileNotFoundError(NO_CONFIG_HINT)
     try:
         fh = open(path, "rb")
     except FileNotFoundError:
-        raise FileNotFoundError(
-            f"config file not found: {path}. Copy config.example.toml to config.toml first "
-            "(cp config.example.toml config.toml)."
-        ) from None
+        raise FileNotFoundError(f"config file not found: {path}. Copy config.example.toml there first.") from None
     with fh:
         raw = tomllib.load(fh)
-    base = path.parent
+    # Storage paths are relative to the config's folder, except for config/config.toml: there the
+    # base is the project folder, so data/ and exports/ stay where they are with either layout.
+    base = path.parent.parent if path.parent.name == CONFIG_FOLDER else path.parent
     storage = raw.get("storage", {})
     web = raw.get("web", {})
     profile = raw.get("profile", {})

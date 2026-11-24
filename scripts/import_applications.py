@@ -1,9 +1,10 @@
 """Import past job applications (found outside the app) as manual applications.
 
 Usage:
-    .venv/bin/python scripts/import_applications.py DATA.json [--config config.toml] [--apply]
+    .venv/bin/python scripts/import_applications.py DATA.json [--config PATH] [--apply]
 
-Without --apply it only prints what it would do. Each record becomes a `manual` job with its
+Without --config it uses this project's config.toml if it exists, else config/config.toml,
+wherever you run it from. Without --apply it only prints what it would do. Each record becomes a `manual` job with its
 application, the phase it reached, its outcome and a dated timeline. Records are keyed by
 `ref`, so running it twice never creates duplicates.
 
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from jobfinder import applications as apps  # noqa: E402
-from jobfinder.config import load_config  # noqa: E402
+from jobfinder.config import DEFAULT_CONFIG_PATHS, NO_CONFIG_HINT, load_config  # noqa: E402
 from jobfinder.db import connect  # noqa: E402
 
 STEP_TIME = time(10, 0)
@@ -85,11 +86,22 @@ def import_records(conn, records: list[dict], tz, apply: bool) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("data", type=Path)
-    parser.add_argument("--config", type=Path, default=ROOT / "config.toml")
+    parser.add_argument("--config", type=Path,
+                        help="config file (default: the project's config.toml, else config/config.toml)")
     parser.add_argument("--apply", action="store_true", help="write to the database (default: dry run)")
     args = parser.parse_args(argv)
     records = json.loads(args.data.read_text())
-    cfg = load_config(args.config)
+    # The default is anchored to this project, not the current folder, so running the script from
+    # elsewhere can never pick up an unrelated config.toml and write into its database.
+    config_path = args.config or next((ROOT / p for p in DEFAULT_CONFIG_PATHS if (ROOT / p).is_file()), None)
+    if config_path is None:
+        print(NO_CONFIG_HINT, file=sys.stderr)
+        return 1
+    try:
+        cfg = load_config(config_path)
+    except FileNotFoundError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     tz = datetime.now().astimezone().tzinfo
     conn = connect(cfg.database)
     with conn:  # one transaction: all records or none

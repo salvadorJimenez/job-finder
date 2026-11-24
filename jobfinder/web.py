@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
+import time
 from datetime import date, datetime, timedelta
 from html import escape
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit
@@ -17,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
 
 from . import applications, cvs, goal
-from .config import Config, load_config
+from .config import Config, load_config, resolve_config_path
 from .db import connect
 from .describe import normalize_description, parse_description
 from .enrich import _CANONICAL, stack_key
@@ -337,22 +338,28 @@ def _job_detail(conn, job_id: int, my_keys: list[str] = ()) -> dict[str, Any] | 
     return job
 
 
-_CONFIG_ERRORS = (OSError, ValueError, TypeError, KeyError)  # TOMLDecodeError is a ValueError
+_CONFIG_ERRORS = (OSError, ValueError, TypeError, KeyError)
+CONFIG_RETRY_SECONDS = 0.3   # see read_search_cfg: one retry after an atomic save  # TOMLDecodeError is a ValueError
+
+
+def _build_app(config_path: Path | None) -> FastAPI:
+    cfg = load_config(config_path)   # raises with the hint when no config exists
+    return create_app(cfg, config_path=resolve_config_path(config_path))
 
 
 class _WaitForValidConfig:
-    """Stands in for the app while config.toml cannot be read, so a typo does not kill the
+    """Stands in for the app while the config file cannot be read, so a typo does not kill the
     --reload worker (the reloader only restarts on code changes, not on config edits).
     Each request retries the config; once it reads, the real app is built and takes over."""
 
-    def __init__(self, config_path: Path):
-        self.config_path = config_path
+    def __init__(self, config_path: Path | None):
+        self.config_path = config_path   # None: look in the default places on every request
         self.app: FastAPI | None = None
 
     async def __call__(self, scope, receive, send):
         if self.app is None:
             try:
-                self.app = create_app(load_config(self.config_path), config_path=self.config_path)
+                self.app = _build_app(self.config_path)
             except _CONFIG_ERRORS as exc:
                 if scope["type"] == "lifespan":
                     while (message := await receive())["type"] != "lifespan.shutdown":
@@ -369,9 +376,10 @@ class _WaitForValidConfig:
 
 def app_from_env():
     """App factory for `job-finder serve --reload`; reads JOB_FINDER_CONFIG."""
-    config_path = Path(os.environ.get("JOB_FINDER_CONFIG", "config.toml"))
+    env = os.environ.get("JOB_FINDER_CONFIG")
+    config_path = Path(env) if env else None   # unset: config.toml, else config/config.toml
     try:
-        return create_app(load_config(config_path), config_path=config_path)
+        return _build_app(config_path)
     except _CONFIG_ERRORS:
         return _WaitForValidConfig(config_path)
 
@@ -451,9 +459,15 @@ def create_app(
         if not config_path:
             return cfg.search, None
         try:
-            return load_config(config_path).search, None
+            try:
+                return load_config(config_path).search, None
+            except FileNotFoundError:
+                # Docker Desktop can show a bind-mounted file as missing for a moment right after
+                # an editor replaces it (atomic save, sed -i): read once more before reporting it.
+                time.sleep(CONFIG_RETRY_SECONDS)
+                return load_config(config_path).search, None
         except _CONFIG_ERRORS as exc:
-            return cfg.search, f"config.toml has an error: {exc}. Fix it and reload the page."
+            return cfg.search, f"config.toml has an error: {str(exc).rstrip('.')}. Fix it and reload the page."
 
     def search_cfg():
         return read_search_cfg()[0]

@@ -1,23 +1,36 @@
 # Configuration
 
-job-finder reads one TOML file, `config.toml`. Start from the example, where every key is commented:
+job-finder reads one TOML file, normally `config/config.toml` (a `config.toml` in the folder you run it from takes precedence, see [Where the config file is](#where-the-config-file-is)). Start from the example, where every key is commented:
 
 ```bash
-cp config.example.toml config.toml
+mkdir -p config && cp config.example.toml config/config.toml
 ```
 
-`config.toml` is **private**: git ignores it, so your searches, stack and paths never end up in a commit. [`config.example.toml`](../config.example.toml) is the tracked template. Back to the [README](../README.md).
+For Docker, create the data folders in the same step, before `docker compose up -d --build`:
 
-Relative paths in the file (`database`, `exports_dir`) are relative to the folder that holds the config file. Pass another file with `job-finder --config path/to/other.toml <command>` (the option goes before the subcommand).
+```bash
+mkdir -p config data exports && cp config.example.toml config/config.toml
+```
 
-If `config.toml` is missing, every CLI command (including `serve`) prints a one-line hint and exits with status 1: `config file not found: config.toml. Copy config.example.toml to config.toml first (cp config.example.toml config.toml).` If the file breaks or disappears while `serve --reload` is running, the page shows the error and recovers by itself once the file reads again.
+On Windows (cmd.exe): `mkdir config` (skip it if the folder exists) and `copy config.example.toml config\config.toml`.
+
+The config is **private**: git ignores `config/` and `config.toml`, so your searches, stack and paths never end up in a commit. [`config.example.toml`](../config.example.toml) is the tracked template. Back to the [README](../README.md).
+
+## Where the config file is
+
+- Without `--config`, the app uses `config.toml` in the current folder if it exists, otherwise `config/config.toml`. A root `config.toml` still works locally, and it wins if both exist.
+- `job-finder --config path/to/other.toml <command>` uses exactly that file (the option goes before the subcommand).
+- Docker mounts the `config/` **folder** at `/app/config`, so the container reads `config/config.toml`; it does not see a root `config.toml`. A folder (unlike a single-file mount) still shows the file after an editor replaces it (atomic save, `sed -i`), so every edit is seen on the next search without restarting. To move an existing root config: `mkdir -p config && mv config.toml config/config.toml` before `docker compose up -d --build`; its content and your data stay as they are.
+- **Relative paths** in `[storage]` (`database`, `exports_dir`) are relative to the config file's folder, except when the file is inside a folder named `config`: then they are relative to the project folder (the parent of `config/`). So `data/` and `exports/` stay at `./data` and `./exports` with either layout. Absolute paths always win.
+
+If neither default file exists, every CLI command (including `serve`) prints a one-line hint and exits with status 1: `config file not found: looked for config.toml and config/config.toml. Create it with: mkdir -p config && cp config.example.toml config/config.toml`. In Docker the container exits with that message and restarts until `config/config.toml` exists; read it with `docker compose logs`. If the file breaks or disappears while `serve --reload` is running, the page shows the error and recovers by itself once the file reads again.
 
 ## What is read when
 
 | Section | Read |
 |---|---|
 | `[search]` | **on every search**: edit it while the server runs and the next search uses it. A typo is reported on the page and the search does not start. |
-| `[profile]`, `[goal]`, `[storage]`, `[web]` | when the server starts: restart it (or use `serve --reload`, or `docker compose restart`) after editing. |
+| `[profile]`, `[goal]`, `[storage]`, `[web]` | when the server starts: restart it (or use `serve --reload`, or `docker compose restart` in Docker) after editing. |
 
 ## First try: what to edit first
 
@@ -80,7 +93,7 @@ Elsewhere the app still works; those heuristics just find less (for example, a s
 
 ### Rate limiting
 
-Sites rate limit scrapers; LinkedIn starts after a few pages. A site that gets blocked is reported as a *partial* search and the next search retries what was missed. If searches start failing:
+Sites rate limit scrapers; LinkedIn starts after a few pages. When a site answers a rate limit (HTTP 429 or "blocked"), the offers it returned before the block are kept, and the search sends **no more requests to that site** (no further pauses either; the progress counter simply ends short) and carries on with the next site. The site is reported as *rate-limited* (a *partial* search, or *failed* if every site failed), the raw error says how many requests were skipped, and the next search retries the site's whole time window. Other errors only skip that one request. If searches start failing:
 
 - raise `pause_seconds`;
 - lower `results_wanted`;
@@ -115,6 +128,8 @@ exports_dir = "exports"
 ```
 
 The SQLite database (every offer and application; attached CVs live in `cvs/` next to it) and the folder where `job-finder export` writes its Markdown files. Both folders are git-ignored and created on first use.
+
+Relative paths are relative to the config file's folder, except for a file inside a folder named `config`, where they are relative to the project folder: with `config/config.toml`, `data/jobs.db` is `<project>/data/jobs.db`, the same place as with a root `config.toml`. Absolute paths are used as they are.
 
 ## `[web]`
 

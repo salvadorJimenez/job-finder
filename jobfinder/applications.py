@@ -210,12 +210,12 @@ def _entry_times(entry: sqlite3.Row, now: datetime) -> dict:
     tz = now.tzinfo
     when = _aware(entry["happened_at"], tz).astimezone(tz)
     return {
-        "when": when.strftime("%Y-%m-%d %H:%M"),
+        "when": when.strftime("%Y-%m-%d %H:%M:%S"),
         "input_value": when.strftime("%Y-%m-%dT%H:%M:%S"),
-        "time": when.strftime("%H:%M"),
+        "time": when.strftime("%H:%M:%S"),
         "day": when.date().isoformat(),
         "day_label": _day_label(when.date(), now.date()),
-        "short": f"{when:%b} {when.day} · {when:%H:%M}",
+        "short": f"{when:%b} {when.day} · {when:%H:%M:%S}",
         "upcoming": entry["kind"] == "note" and when >= now,
     }
 

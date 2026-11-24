@@ -205,7 +205,7 @@ def test_timeline_is_newest_first_with_phase_date_and_notes(env):
     order = [html.index(n) for n in ("LASTNOTE", "MIDNOTE", "FIRSTNOTE")]
     assert order == sorted(order)
     entry = re.search(r'<li class="entry[^"]*"[^>]*>(?:(?!</li>).)*LASTNOTE.*?</li>', html, re.S).group(0)
-    assert "Technical" in entry and "2026-11-09 15:30" in entry
+    assert "Technical" in entry and "2026-11-09 15:30:00" in entry
 
 
 def test_move_entries_are_muted_and_note_entries_are_not(env):
@@ -353,6 +353,46 @@ def test_notes_in_the_same_minute_sort_by_their_seconds(env, order):
     assert stored == {"first": "2026-11-10T14:09:10", "second": "2026-11-10T14:09:40"}
     html = client.get(f"/applications/{app_id}").text
     assert html.index("second") < html.index("first")      # newest first, whatever the insertion order
+
+
+def time_tags(html, note):
+    """(datetime attribute, visible text) of the entry-time of the entry containing `note`."""
+    item = re.search(r'<li class="entry[^"]*"[^>]*>(?:(?!</li>).)*%s.*?</li>' % note, html, re.S).group(0)
+    return re.search(r'<time class="entry-time" datetime="([^"]*)">([^<]*)</time>', item).groups()
+
+
+def test_timeline_times_show_seconds_and_keep_them_in_the_datetime_attribute(env):
+    client, conn = env
+    app_id = make_app(conn, "a")
+    for t, name in (("14:09:10", "first"), ("14:09:40", "second")):
+        client.post(f"/applications/{app_id}/entries", data=good(conn, happened_at=f"2026-11-02T{t}", notes=name))
+    html = client.get(f"/applications/{app_id}").text
+    assert html.index("second") < html.index("first")
+    assert time_tags(html, "second") == ("2026-11-02T14:09:40", "14:09:40")
+    assert time_tags(html, "first") == ("2026-11-02T14:09:10", "14:09:10")
+
+
+def test_timeline_time_typed_without_seconds_shows_zero_seconds(env):
+    client, conn = env
+    app_id = make_app(conn, "a")
+    client.post(f"/applications/{app_id}/entries", data=good(conn, happened_at="2026-11-02T14:09", notes="minutes"))
+    assert time_tags(client.get(f"/applications/{app_id}").text, "minutes") == ("2026-11-02T14:09:00", "14:09:00")
+
+
+def test_upcoming_timeline_time_shows_seconds_too(env):
+    client, conn = env
+    app_id = make_app(conn, "a")
+    client.post(f"/applications/{app_id}/entries", data=good(conn, happened_at="2026-11-10T14:09:40", notes="later"))
+    assert time_tags(client.get(f"/applications/{app_id}").text, "later") == ("2026-11-10T14:09:40", "Nov 10 · 14:09:40")
+
+
+def test_move_entries_show_seconds(env):
+    client, conn = env
+    app_id = make_app(conn, "a")
+    conn.execute("UPDATE timeline_entries SET happened_at = '2026-11-02T09:29:07' WHERE kind = 'move'")
+    conn.commit()
+    html = client.get(f"/applications/{app_id}").text
+    assert re.search(r'<time class="entry-time" datetime="2026-11-02T09:29:07">09:29:07</time>', html)
 
 
 def test_date_inputs_allow_seconds_and_default_to_now_with_seconds(env):

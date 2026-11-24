@@ -14,18 +14,18 @@ job-finder is a private, local job-search tool: a FastAPI web app plus a small C
 
 Follow these steps in order when a user asks you to set job-finder up. Run each check and stop to tell the user if it fails; do not work around a failed check. Use the repository root as the working directory. On Windows replace `.venv/bin/` with `.venv\Scripts\`, `cp` with `copy`, `cp -R` with `xcopy /E /I`, and `mkdir -p data exports` with `mkdir data exports` (cmd.exe has no `-p`; skip folders that already exist).
 
-**Never overwrite or delete the user's `config.toml`, `data/`, `profile/`, `resumes/` or `exports/`, and never commit them** (they are git-ignored and private; also keep `.codegraph/` out of commits). Do not run a live search just to test the setup: it sends real requests to LinkedIn, Indeed and Glassdoor and can trigger rate limiting. Starting the server and loading the page is enough.
+**Never overwrite, move or delete the user's config (`config.toml` or `config/`), `data/`, `profile/`, `resumes/` or `exports/`, and never commit them** (they are git-ignored and private; also keep `.codegraph/` out of commits). Do not run a live search just to test the setup: it sends real requests to LinkedIn, Indeed and Glassdoor and can trigger rate limiting. Starting the server and loading the page is enough.
 
 Choose **local Python** (steps 1-7) or **Docker** (steps 8-10); do not run both at once, they share port 8000 and the database.
 
 1. **Check Python.** `python3 --version` must report 3.11 or newer. If not, tell the user to install it (or use Docker) and stop.
 2. **Create the virtual environment**, only if `.venv/` does not exist: `python3 -m venv .venv`. Check: `.venv/bin/python --version` works.
 3. **Install.** `.venv/bin/pip install -e .` to use the tool, or `.venv/bin/pip install -e '.[dev]'` to develop and run the tests. Check: `.venv/bin/job-finder --help` lists `serve`, `search` and `export`.
-4. **Create the config**, only if `config.toml` does not exist: `cp config.example.toml config.toml`. If it exists, leave it as it is. Check: `config.toml` is a file, not a directory.
-5. **Ask the user** for the search terms, `location` and `country_indeed`, and their stack (`[profile] stack`), and edit `config.toml` with their answers. If they have no preference, leave the example values: they work for a first try. Keep `terms` and `location` lists short (requests multiply, see Gotchas).
+4. **Create the config**, only if neither `config.toml` nor `config/config.toml` exists: `mkdir -p config && cp config.example.toml config/config.toml`. If either exists, leave it where it is (never move or overwrite it without asking the user; `config.toml` wins when both exist). Check: the file is a file, not a directory.
+5. **Ask the user** for the search terms, `location` and `country_indeed`, and their stack (`[profile] stack`), and edit the config file you found or created in step 4 with their answers. If they have no preference, leave the example values: they work for a first try. Keep `terms` and `location` lists short (requests multiply, see Gotchas).
 6. **Create the folders**: `mkdir -p data exports`. Required before Docker on Linux, harmless otherwise.
 7. **Start the server**: `.venv/bin/job-finder serve`. Check: it prints `job-finder running at http://127.0.0.1:8000 (press Ctrl+C to stop)`, keeps running, and `http://127.0.0.1:8000` answers. If it instead prints `Port 8000 on 127.0.0.1 is already in use …` and exits 1, something else (often job-finder in Docker) holds the port: tell the user, and use `--port 8001` or stop the other one. It runs until Ctrl+C, so start it in the background or a separate terminal, and tell the user how to stop it.
-8. **Docker only, config and folders**: steps 4 to 6 first (`config.toml` as a file, then `mkdir -p data exports`). If they are missing at the first `up`, Docker creates a *directory* named `config.toml` and root-owned `data/` and `exports/`, and the app (an unprivileged user, uid 1000) cannot write the database.
+8. **Docker only, config and folders**: steps 4 to 6 first (`config/config.toml`, then `mkdir -p data exports`). Docker mounts the `config/` **folder**, so an existing root `config.toml` is not seen by the container until the user moves it to `config/config.toml` (offer that, do not do it unasked). If `data/` or `exports/` are missing at the first `up`, Docker creates them root-owned and the app (an unprivileged user, uid 1000) cannot write the database. If `config/` has no `config.toml`, the container exits with a one-line hint (`docker compose logs`) and restarts until the file exists.
 9. **Docker only, start**: `docker compose up -d --build`, then `docker compose ps` until `STATUS` says `(healthy)`; if it is `unhealthy` or restarting, `docker compose logs --tail 50`. Stop any local `serve` first (same port).
 10. **Open** http://127.0.0.1:8000 and tell the user to press **SEARCH** when they are ready (a search takes several minutes; see docs/configuration.md).
 
@@ -41,8 +41,8 @@ Optional, only if the user asks:
 
 | Module | Responsibility |
 |---|---|
-| `cli.py` | `job-finder` entry point: `serve` (`--reload`, `--host`, `--port`), `search`, `export --date [--stdout]`; global `--config`. Missing config → one-line hint on stderr, exit 1. |
-| `config.py` | `load_config()` → frozen dataclasses (`Config`, `SearchConfig`). Paths are relative to the config file's folder. Validates `location` (string or non-empty list). |
+| `cli.py` | `job-finder` entry point: `serve` (`--reload`, `--host`, `--port`), `search`, `export --date [--stdout]`; global `--config`. Without `--config` it uses `config.toml` if it exists, else `config/config.toml`; no config → one-line hint on stderr naming both places, exit 1. An explicit `--config` path is used as is. |
+| `config.py` | `load_config()` → frozen dataclasses (`Config`, `SearchConfig`). `resolve_config_path()` picks the default file. Storage paths are relative to the config file's folder, except for a file inside a folder named `config` (see Config location). Validates `location` (string or non-empty list). |
 | `db.py` | SQLite schema (`SCHEMA`, `CREATE ... IF NOT EXISTS`), `connect()` and the additive migrations in `_migrate`. Registers a `casefold` SQL function for accent-insensitive search. |
 | `search.py` | `run_search()`: per site, per (place, term) calls JobSpy, upserts jobs, records `runs` / `run_sites`, computes per-site time windows (`hours_since_last_success`), plus the panel copy (`describe_when`, `describe_outcome`, `humanize_error`). |
 | `enrich.py` | Text extraction from postings: `parse_salary` (MXN/USD), `detect_salary_basis` (gross/net), `extract_stack` and `stack_key` (technology list), `detect_work_mode` (remote/hybrid/onsite). Spanish and English patterns. |
@@ -70,7 +70,7 @@ JobSpy scrape ──► enrich ──► dedup ──► SQLite ──► web (l
 
 1. `run_search` computes `hours_old` per site (time since that site's last successful run + `overlap_hours`, or `first_search_days` the first time) and calls `scrape_jobs(site_name=[site], search_term=..., location=..., country_indeed=..., results_wanted=..., hours_old=..., fetch_description=True, description_format="markdown")` once per (place, term).
 2. Each returned posting goes through `_upsert`: if `(site, external_id)` exists only `last_seen_at` and `search_terms` change; otherwise salary, gross/net, stack and work mode are extracted (`enrich.py`), the job is inserted, `job_stack` rows are written, and `_assign_duplicate_group` compares it with jobs seen in the last 90 days.
-3. A failing (place, term) is recorded on its site and does not stop the others. Run status is `success`, `partial` (some sites failed) or `failed`; the next search retries a failed site's window.
+3. A failing (place, term) is recorded on its site and does not stop the others, except a rate limit (429 / blocked, `search.is_rate_limit`): the rows that site already returned are kept and it gets no more requests in that search, while the other sites continue. Run status is `success`, `partial` (some sites failed) or `failed`; the next search retries a failed site's window.
 4. `web.py` reads the database on each request (a new connection per call), renders offers (descriptions tidied by `describe.py`, rendered as untrusted text) and the application tracker.
 
 ### Database
@@ -81,6 +81,10 @@ JobSpy scrape ──► enrich ──► dedup ──► SQLite ──► web (l
 - Applications are never deleted when a job's status changes; timeline entries keep a `phase_name` snapshot **and** a nullable `phase_id` link (used so a phase rename rewrites exactly its entries; deleting a phase clears the link and keeps the name).
 - Manual jobs (`site = 'manual'`) need a `first_seen_run`, so the first one creates a `runs` row with status `manual`; searches ignore it.
 - Dates are stored as ISO strings. "Local" means the process time zone (see [Gotchas](#gotchas)).
+
+### Config location
+
+Without `--config` (and without `JOB_FINDER_CONFIG` in the `--reload` worker) the app uses `config.toml` in the current folder if it exists, else `config/config.toml`; if both exist the root file wins. The folder layout exists for Docker: `compose.yaml` mounts `./config` as a folder, so an editor that replaces the file (atomic save, `sed -i`) is still seen by the container. **Storage rule:** `[storage]` paths are relative to the config file's folder, except that a config inside a folder named `config` is relative to that folder's parent (the project folder). So `config/config.toml` with the default `data/jobs.db` and `exports` still uses `<project>/data` and `<project>/exports` (in Docker, `/app/data` and `/app/exports`), the same as the root layout; absolute paths always win, and `--config /any/where/settings.toml` keeps "relative to its own folder". Do not change `config.example.toml` defaults to `../data`: that would break the root layout. The Docker `CMD` has no `--config`, so a missing config prints the two-places hint.
 
 ### Config reload
 
@@ -107,7 +111,7 @@ These already exist in the code; keep them intact when changing related code, an
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'              # add '.[resume]' only for the resume renderer (dev already includes reportlab)
-cp config.example.toml config.toml             # private, git-ignored; edit it
+mkdir -p config && cp config.example.toml config/config.toml   # private, git-ignored; edit it (a root config.toml also works)
 .venv/bin/job-finder serve --reload            # http://127.0.0.1:8000, restarts on code changes
 .venv/bin/job-finder search                    # same search from the terminal
 .venv/bin/job-finder export --date YYYY-MM-DD [--stdout]
@@ -139,15 +143,15 @@ On Windows replace `.venv/bin/` with `.venv\Scripts\`. The Docker image copies `
 - **Conventional Commits** (`feat(scope): ...`, `fix: ...`, `docs: ...`, `chore: ...`, `test: ...`, `refactor: ...`). Keep diffs small and reviewable: one concern per commit.
 - **No new dependencies without need.** Prefer the standard library; justify any addition in the commit message and add it to `pyproject.toml`.
 - **Follow the existing style**: type hints, `from __future__ import annotations`, short docstrings that say *why*, plain SQL with bound parameters, no ORM.
-- **Never commit personal data.** `config.toml`, `profile/`, `resumes/`, `data/` and `exports/` are git-ignored and private (`.codegraph/` is a local index: do not commit it either): never `git add -f` them, never print their contents into commits, issues or fixtures. Use `config.example.toml` and `profile.example/` for examples, and **fictional people and companies** (Acme, Globex, "Jane Doe") in fixtures, docs and screenshots.
-- **Never break the user's data.** No destructive migrations, no resetting a user's `config.toml`, database, `profile/` or `resumes/`.
+- **Never commit personal data.** `config.toml`, `config/`, `profile/`, `resumes/`, `data/` and `exports/` are git-ignored and private (`.codegraph/` is a local index: do not commit it either): never `git add -f` them, never print their contents into commits, issues or fixtures. Use `config.example.toml` and `profile.example/` for examples, and **fictional people and companies** (Acme, Globex, "Jane Doe") in fixtures, docs and screenshots.
+- **Never break the user's data.** No destructive migrations, no resetting a user's config (`config.toml` or `config/`), database, `profile/` or `resumes/`.
 - Static assets: edit `style.css` / `app.js` freely; they are versioned by content hash (see Gotchas). If you change the files precached in `sw.js`, bump its `CACHE` name.
 
 ## Gotchas
 
 - **Request multiplication and rate limits.** One search makes `terms × places × sites` JobSpy calls, with a `pause_seconds` sleep between consecutive calls to the same site (default `3` in `config.py`, `30` in `config.example.toml`). LinkedIn answers HTTP 429 after a few pages; `humanize_error` shows 429/"blocked" as *rate-limited*. The fix is more pause, fewer `results_wanted`, fewer terms/places. Adding a term or a place multiplies requests, so keep example configs small.
-- **JobSpy quirks.** Glassdoor needs a location it can resolve, and Indeed/Glassdoor take their country from `country_indeed`, not from `location`. Use the full `City, State, Country` form so ambiguous names (Córdoba exists in Mexico, Argentina and Spain) do not match. Glassdoor matches terms loosely and sometimes returns placeholder salaries (`MXN 1 / month`). JobSpy reports per-site problems through `df.attrs["errors"]`; `run_search` turns them into a site failure.
-- **Docker single-file bind mount.** `compose.yaml` mounts `./config.toml` as a single file. If it does not exist at the first `up`, Docker creates a *directory* named `config.toml`. And editors that replace the file (atomic save, `sed -i`) leave the container looking at the old inode: `docker compose restart` fixes it. Keep the `cp config.example.toml config.toml` step at the top of the Docker instructions.
+- **JobSpy quirks.** Glassdoor needs a location it can resolve, and Indeed/Glassdoor take their country from `country_indeed`, not from `location`. Use the full `City, State, Country` form so ambiguous names (Córdoba exists in Mexico, Argentina and Spain) do not match. Glassdoor matches terms loosely and sometimes returns placeholder salaries (`MXN 1 / month`). JobSpy reports per-site problems through `df.attrs["errors"]`; `run_search` turns them into a site failure, but stores any rows returned alongside the error (JobSpy returns earlier pages when a later one is blocked).
+- **Docker config folder mount.** `compose.yaml` mounts `./config` (a folder) at `/app/config:ro`, never `config.toml` alone: a single-file mount keeps the old inode when an editor replaces the file (atomic save, `sed -i`), so the container kept reading the old content until `docker compose restart`. With the folder mount the edit shows on the next config read. If `./config` does not exist at the first `up`, Docker creates it root-owned and empty, and the container exits 1 with the one-line hint and restarts (`restart: unless-stopped`, with backoff) until `config/config.toml` exists. Keep `mkdir -p config data exports && cp config.example.toml config/config.toml` at the top of the Docker instructions.
 - **Static asset cache-busting.** `web.py` hashes `style.css` and `app.js` at startup and templates reference them through the `asset()` global (`/static/style.css?v=<hash>`). Versioned URLs are served with `immutable` long cache, unversioned `/static/` URLs with `no-cache`, and `/sw.js` is served from the root with `no-cache`. Always reference those two files with `asset(...)` in templates, never with a bare path.
 - **Time zones.** "Today", the daily goal, the streak and the activity calendar use the **local calendar date** of the process (`search.local_now()`; `goal.py` and `applications.py` take `now`). The Docker image has no zone by default, so `compose.yaml` sets `TZ` (default `America/Mexico_City`, override with `TZ=... docker compose up -d --build`). Timeline times with an offset are converted with the current UTC offset; plain ones typed by the user are taken as local.
 - **Timeline phase data.** `timeline_entries.phase_name` is a snapshot; `phase_id` is the link. Renaming a phase rewrites only entries with that `phase_id`. Do not "simplify" this by rewriting by name.

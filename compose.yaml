@@ -1,6 +1,8 @@
 # Keeps job-finder running in the background: docker compose up -d --build
-# Create config.toml first (cp config.example.toml config.toml): if the file is missing,
-# Docker creates a directory with that name for the bind mount and the app cannot start.
+# Create the folders and the config first:
+#   mkdir -p config data exports && cp config.example.toml config/config.toml
+# If a folder is missing, Docker creates it owned by root and the app (uid 1000) cannot write to it;
+# if config/ has no config.toml, the container stops with a one-line hint (docker compose logs).
 services:
   job-finder:
     build: .
@@ -12,6 +14,6 @@ services:
     environment:
       TZ: ${TZ:-America/Mexico_City}   # local dates for "today" and the streak; set TZ=... to change it
     volumes:
-      - ./config.toml:/app/config.toml:ro   # edit it on the host; read on every search
+      - ./config:/app/config:ro             # a folder, not one file: any edit shows up, read on every search
       - ./data:/app/data                    # database and CVs stay on the host
       - ./exports:/app/exports

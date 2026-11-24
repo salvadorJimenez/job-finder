@@ -58,10 +58,15 @@ def site_label(site: str) -> str:
     return _SITE_NAMES.get(site, site.title())
 
 
+def is_rate_limit(raw: str | None) -> bool:
+    """True when a scrape error says the site answered 429 or blocked us."""
+    low = (raw or "").lower()
+    return any(hint in low for hint in _RATE_LIMIT_HINTS)
+
+
 def humanize_error(raw: str | None) -> str:
     """Plain words for a technical scrape error: "rate-limited" for 429/blocked, otherwise "failed"."""
-    low = (raw or "").lower()
-    return "rate-limited" if any(hint in low for hint in _RATE_LIMIT_HINTS) else "failed"
+    return "rate-limited" if is_rate_limit(raw) else "failed"
 
 
 def site_problems(errors: dict[str, str]) -> str:
@@ -263,6 +268,7 @@ def run_search(
             if i and cfg.pause_seconds:
                 sleep(cfg.pause_seconds)
             on_progress(f"{site}: {term} · {location}")
+            error = None
             try:
                 df = scrape(
                     site_name=[site],
@@ -277,17 +283,25 @@ def run_search(
                 )
                 errors = getattr(df, "attrs", {}).get("errors") or {}
                 if errors:
-                    raise RuntimeError("; ".join(str(e) for e in errors.values()))
+                    error = "; ".join(str(e) for e in errors.values())
             except Exception as exc:  # one failing term must not lose the others
-                site_error = f"{term} · {location}: {exc}"
+                df, error = None, str(exc)
+            if df is not None:  # JobSpy returns what it found before a block together with the error
+                with conn:
+                    for raw in df.to_dict("records"):
+                        raw["site"] = site
+                        if _upsert(conn, run_id, raw, term, started):
+                            result.new_count += 1
+                        else:
+                            result.seen_count += 1
+            if error is None:
                 continue
-            with conn:
-                for raw in df.to_dict("records"):
-                    raw["site"] = site
-                    if _upsert(conn, run_id, raw, term, started):
-                        result.new_count += 1
-                    else:
-                        result.seen_count += 1
+            site_error = f"{term} · {location}: {error}"
+            if is_rate_limit(error):  # asking again only prolongs the block: stop this site for this search
+                skipped = len(queries) - i - 1
+                if skipped:
+                    site_error += f" (stopped after a rate limit; {skipped} request{'' if skipped == 1 else 's'} skipped)"
+                break
         with conn:
             conn.execute(
                 "INSERT INTO run_sites (run_id, site, hours_old, status, error) VALUES (?, ?, ?, ?, ?)",

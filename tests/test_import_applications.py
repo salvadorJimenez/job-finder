@@ -1,5 +1,6 @@
 """scripts/import_applications.py: past applications become manual applications with history."""
 import importlib.util
+import json
 from datetime import timedelta, timezone
 from pathlib import Path
 
@@ -77,3 +78,59 @@ def test_unknown_phase_is_refused_before_writing_that_record(tmp_path):
     with pytest.raises(ValueError, match="unknown phase 'Nope'"):
         imp.import_records(conn, bad, TZ, apply=True)
     assert rows(conn) == []
+
+
+def write_config(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('[search]\nterms = ["x"]\nsites = ["indeed"]\nlocation = "Mexico"\ncountry_indeed = "Mexico"\n')
+
+
+def run_import(tmp_path, *extra):
+    data = tmp_path / "data.json"
+    data.write_text(json.dumps(RECORDS[1:]))
+    return imp.main([str(data), *extra])
+
+
+def test_default_config_is_found_in_the_config_folder_and_storage_stays_in_the_project(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(imp, "ROOT", tmp_path)
+    write_config(tmp_path / "config" / "config.toml")
+    assert run_import(tmp_path, "--apply") == 0
+    assert "applied" in capsys.readouterr().out
+    # config/config.toml keeps data/ in the project folder, not inside config/
+    assert (tmp_path / "data" / "jobs.db").is_file() and not (tmp_path / "config" / "data").exists()
+    assert [r["company"] for r in rows(connect(tmp_path / "data" / "jobs.db"))] == ["Hooli"]
+
+
+def test_default_config_prefers_a_root_config_toml_when_both_exist(tmp_path, monkeypatch):
+    monkeypatch.setattr(imp, "ROOT", tmp_path)
+    write_config(tmp_path / "config" / "config.toml")
+    write_config(tmp_path / "config.toml")
+    (tmp_path / "config.toml").write_text(
+        (tmp_path / "config.toml").read_text() + '\n[storage]\ndatabase = "root.db"\n')
+    assert run_import(tmp_path, "--apply") == 0
+    assert (tmp_path / "root.db").is_file() and not (tmp_path / "data").exists()
+
+
+def test_without_any_config_it_prints_the_hint_and_exits_1(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(imp, "ROOT", tmp_path)
+    assert run_import(tmp_path) == 1
+    assert "looked for config.toml and config/config.toml" in capsys.readouterr().err
+
+
+def test_default_config_comes_from_the_project_folder_even_when_run_elsewhere(tmp_path, monkeypatch, capsys):
+    project, elsewhere = tmp_path / "project", tmp_path / "elsewhere"
+    write_config(project / "config" / "config.toml")
+    write_config(elsewhere / "config.toml")              # an unrelated config in the current folder
+    (elsewhere / "config.toml").write_text(
+        (elsewhere / "config.toml").read_text() + '\n[storage]\ndatabase = "wrong.db"\n')
+    monkeypatch.setattr(imp, "ROOT", project)
+    monkeypatch.chdir(elsewhere)
+    assert run_import(tmp_path, "--apply") == 0
+    assert (project / "data" / "jobs.db").is_file() and not (elsewhere / "wrong.db").exists()
+
+
+def test_an_explicit_missing_config_prints_one_line_and_exits_1(tmp_path, capsys):
+    missing = tmp_path / "nope.toml"
+    assert run_import(tmp_path, "--config", str(missing)) == 1
+    out, err = capsys.readouterr()
+    assert out == "" and err.strip().splitlines() == [err.strip()] and str(missing) in err

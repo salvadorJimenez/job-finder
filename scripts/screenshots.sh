@@ -5,7 +5,7 @@
 #
 # Everything happens in a throwaway folder: a config and a database seeded by
 # scripts/demo_data.py, a server on 127.0.0.1:$PORT (default 8790, never 8000) and a Chrome
-# profile. Your own config.toml, data/ and the server on port 8000 are never touched. The
+# profile. Your own config (config/ or config.toml), data/ and the server on port 8000 are never touched. The
 # folder and the server are removed when the script ends. Needs Chrome or Chromium.
 # Optional: SCALE (device pixel ratio, default 1.5), WIDTH (default 1440).
 set -euo pipefail

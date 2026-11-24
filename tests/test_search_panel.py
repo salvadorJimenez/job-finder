@@ -117,6 +117,24 @@ def test_partial_outcome_is_human_with_raw_error_collapsed(env):
     assert 'class="notice' not in client.get("/").text                      # one panel, no separate notice
 
 
+def test_rate_limit_stop_is_readable_in_the_panel(env):
+    from jobfinder.search import run_search
+    client, conn, _ = env
+
+    def scrape(**kw):
+        if kw["site_name"] == ["linkedin"]:
+            raise RuntimeError("response status code 429 (blocked: use a proxy)")
+        import pandas as pd
+        return pd.DataFrame([])
+
+    run_search(conn, make_cfg(Path(".")).search, scrape=scrape, now=NOW - timedelta(minutes=5))
+    p = panel(client.get("/").text)
+    assert re.search(r'class="search-outcome partial"[^>]*>! Partial: LinkedIn was rate-limited\. 0 new', p)
+    details = re.search(r"<details class=\"search-details\">(.*?)</details>", p, re.S).group(1)
+    assert "(stopped after a rate limit; 1 request skipped)" in details
+    assert "stopped after a rate limit" not in p.replace(details, "")
+
+
 def test_failed_outcome_keeps_the_last_good_search_as_title(env):
     client, conn, _ = env
     add_run(conn, datetime(2026, 11, 8, 9, 0, tzinfo=TZ))

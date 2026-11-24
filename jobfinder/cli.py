@@ -7,7 +7,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .config import DEFAULT_CONFIG_PATH, load_config
+from .config import NO_CONFIG_HINT, load_config, resolve_config_path
 from .db import connect
 
 
@@ -40,7 +40,7 @@ def _url(host: str, port: int) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="job-finder", description="Private local job search for LinkedIn, Indeed and Glassdoor.")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="path to config.toml")
+    parser.add_argument("--config", type=Path, help="path to the config file (default: config.toml, else config/config.toml)")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="start the local web page")
     serve.add_argument("--reload", action="store_true", help="restart automatically when the code changes")
@@ -51,8 +51,11 @@ def main(argv: list[str] | None = None) -> int:
     exp.add_argument("--date", required=True, help="day in YYYY-MM-DD format")
     exp.add_argument("--stdout", action="store_true", help="print instead of writing a file")
     args = parser.parse_args(argv)
+    config_path = resolve_config_path(args.config)
     try:
-        cfg = load_config(args.config)
+        if config_path is None:
+            raise FileNotFoundError(NO_CONFIG_HINT)
+        cfg = load_config(config_path)
     except FileNotFoundError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -74,14 +77,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.reload:
             # The reloader starts a fresh process on every change, so it needs an
             # import string; the config path travels in an environment variable.
-            os.environ["JOB_FINDER_CONFIG"] = str(args.config.resolve())
+            os.environ["JOB_FINDER_CONFIG"] = str(config_path.resolve())
             uvicorn.run(
                 "jobfinder.web:app_from_env", factory=True, reload=True,
                 reload_dirs=[str(Path(__file__).resolve().parent)],
                 host=host, port=port, log_level="warning",
             )
             return 0
-        app = create_app(cfg, config_path=args.config)
+        app = create_app(cfg, config_path=config_path)
         uvicorn.run(app, host=host, port=port, log_level="warning")
         return 0
 

@@ -56,15 +56,15 @@ git clone https://github.com/salvadorJimenez/job-finder.git
 cd job-finder
 python3 -m venv .venv
 .venv/bin/pip install -e .
-cp config.example.toml config.toml
+mkdir -p config && cp config.example.toml config/config.toml
 .venv/bin/job-finder serve
 ```
 
 `serve` prints `job-finder running at http://127.0.0.1:8000 (press Ctrl+C to stop)` and keeps running until you press **Ctrl+C**. Open that address and press **SEARCH**.
 
-> **Windows:** use `python -m venv .venv` and `.venv\Scripts\pip install -e .`, then `.venv\Scripts\job-finder serve`. Replace `cp` with `copy`.
+> **Windows:** use `python -m venv .venv` and `.venv\Scripts\pip install -e .`, then `.venv\Scripts\job-finder serve`. Replace the config command with `mkdir config` and `copy config.example.toml config\config.toml` (skip `mkdir` if the folder exists).
 
-`config.toml` is private (git-ignored). If it is missing, the CLI exits with status 1 and a one-line hint (`Copy config.example.toml to config.toml first`).
+Your config is private (`config/` and `config.toml` are git-ignored). The app looks in the folder you run it from (normally the project folder): `config.toml` if it exists, otherwise `config/config.toml`; an existing root `config.toml` keeps working locally and wins if both exist. `--config PATH` uses exactly that file. If neither exists, the CLI exits with status 1 and a one-line hint: `config file not found: looked for config.toml and config/config.toml. Create it with: mkdir -p config && cp config.example.toml config/config.toml`.
 
 **First try:** the example config works unchanged, so you can search right away. When you want results that fit you, edit these first (the `[search]` section is read on every search, no restart needed; details in [docs/configuration.md](docs/configuration.md)):
 
@@ -72,7 +72,7 @@ cp config.example.toml config.toml
 - `[search] location` and `country_indeed`: where to look (change them together).
 - `[profile] stack`: your technologies, so matching offers are listed first (this one is read when the server starts).
 
-**What happens when you press SEARCH:** the search runs on the server, one request per site, place and term. The page locks the list and shows a progress overlay with a step counter and the current step (`linkedin: software engineer · Mexico`); when the search ends, the page reloads and the panel shows the outcome. With the example config (3 terms, 1 place, 3 sites) expect **several minutes**, roughly 5 to 10: the 30 s pauses alone add about 3 minutes, and every offer's description is fetched. The very first search looks back 7 days, so it can take longer. More terms or places multiply the time and the chance that LinkedIn rate-limits you; a rate-limited site is reported and retried by the next search (see [Rate limiting](docs/configuration.md#rate-limiting)). `job-finder search` runs the same search in the terminal and prints a progress line per step.
+**What happens when you press SEARCH:** the search runs on the server, one request per site, place and term. The page locks the list and shows a progress overlay with a step counter and the current step (`linkedin: software engineer · Mexico`); when the search ends, the page reloads and the panel shows the outcome. With the example config (3 terms, 1 place, 3 sites) expect **several minutes**, roughly 5 to 10: the 30 s pauses alone add about 3 minutes, and every offer's description is fetched. The very first search looks back 7 days, so it can take longer. More terms or places multiply the time and the chance that LinkedIn rate-limits you; a rate-limited site keeps the offers it returned before the block, gets no more requests in that search, and is retried by the next one (see [Rate limiting](docs/configuration.md#rate-limiting)). `job-finder search` runs the same search in the terminal and prints a progress line per step.
 
 ### Day to day (local Python)
 
@@ -83,17 +83,16 @@ cp config.example.toml config.toml
 
 - **Stop:** Ctrl+C in the terminal where `serve` runs. Nothing runs in the background, and your data stays in `data/`.
 - **Update:** stop the server, then `git pull` and `.venv/bin/pip install -e .` again (it picks up new dependencies; database changes are applied automatically and never delete your data), then start it again. Contributors use `.venv/bin/pip install -e '.[dev]'` instead, which also installs the test tools.
-- **Back up:** with the server stopped, copy `data/` (the SQLite database `data/jobs.db` and the CVs you attached, in `data/cvs/`) and `config.toml` somewhere safe. If you use the resume tools, also copy `profile/` and `resumes/`. To restore, put them back in the project folder.
+- **Back up:** with the server stopped, copy `data/` (the SQLite database `data/jobs.db` and the CVs you attached, in `data/cvs/`) and `config/` (or `config.toml`, if that is where your config is) somewhere safe. If you use the resume tools, also copy `profile/` and `resumes/`. To restore, put them back in the project folder.
 - **"Port 8000 … is already in use":** `serve` checks the port before starting and exits with that message when something else listens there, often job-finder running in Docker. Stop the other one, or use `--port 8001`.
-- **Where things live:** `data/` (database and CVs), `exports/` (Markdown exports), `config.toml` (your settings). The paths come from `[storage]` in the config, relative to the config file's folder; all of them are git-ignored.
+- **Where things live:** `data/` (database and CVs), `exports/` (Markdown exports), `config/config.toml` or `config.toml` (your settings). The `[storage]` paths are relative to the config file's folder, except for a file inside a folder named `config`, where they are relative to the project folder; so `data/` and `exports/` stay next to `config/` with either layout. All of them are git-ignored.
 
 ## Quickstart: Docker
 
 Keeps job-finder running in the background, also after a reboot.
 
 ```bash
-cp config.example.toml config.toml     # FIRST: see the notes below
-mkdir -p data exports                  # FIRST: create these as your own user
+mkdir -p config data exports && cp config.example.toml config/config.toml   # FIRST: see the notes below
 docker compose up -d --build
 docker compose ps                      # wait until STATUS says (healthy)
 ```
@@ -104,9 +103,11 @@ Open http://127.0.0.1:8000. "Today", the daily goal and the streak follow the co
 TZ=Europe/Madrid docker compose up -d --build
 ```
 
-> **Create `config.toml` before the first `docker compose up`.** `compose.yaml` bind-mounts that file; if it does not exist, Docker creates a *directory* with that name and the app cannot start. (If that already happened: `docker compose down`, remove the directory, copy the example, start again.)
+> **Create `config/config.toml` before the first `docker compose up`.** `compose.yaml` mounts the `config/` **folder** (not one file), so any edit to the file, even with an editor that replaces it (atomic save, `sed -i`), is seen on the next search without restarting. If `config/` has no `config.toml`, the container exits with the one-line hint (`config file not found: looked for config.toml and config/config.toml. Create it with: mkdir -p config && cp config.example.toml config/config.toml`) and restarts until the file exists: read it with `docker compose logs`, create the file, and it starts by itself.
 
-> **Create `data/` and `exports/` too (`mkdir -p data exports`).** On Linux, Docker creates missing bind-mount folders owned by root, and the app runs as an unprivileged user (uid 1000), so it could not write the database. See the first Troubleshooting row if that already happened.
+> **Moving an existing root config for Docker:** `mkdir -p config && mv config.toml config/config.toml` before `docker compose up -d --build`. Its content and your data stay as they are. The container does not see a root `config.toml`.
+
+> **Create `data/` and `exports/` too (the `mkdir -p config data exports` above does it).** On Linux, Docker creates missing bind-mount folders owned by root, and the app runs as an unprivileged user (uid 1000), so it could not write the database. See the first Troubleshooting row if that already happened.
 
 Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (macOS, Windows) or Docker Engine with the Compose plugin (Linux). On Docker Desktop, enable **Settings → General → Start Docker Desktop when you sign in**: the container has `restart: unless-stopped`, so it comes back whenever Docker starts. Stop any local `job-finder serve` first: it uses the same port and database. Use one or the other at a time.
 
@@ -115,7 +116,7 @@ Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (macOS
 ```bash
 docker compose ps                # is it running and healthy?
 docker compose logs -f           # follow the logs (Ctrl+C stops following, not the app)
-docker compose restart           # restart it (also picks up a config.toml that was replaced)
+docker compose restart           # restart it
 docker compose down              # stop it (your data stays in data/)
 docker compose up -d --build     # after pulling or changing the code: rebuild and restart
 ```
@@ -123,15 +124,15 @@ docker compose up -d --build     # after pulling or changing the code: rebuild a
 Search and export from the terminal, inside the container:
 
 ```bash
-docker compose exec job-finder job-finder --config /app/config.toml search
-docker compose exec job-finder job-finder --config /app/config.toml export --date 2026-11-04   # writes exports/
+docker compose exec job-finder job-finder search
+docker compose exec job-finder job-finder export --date 2026-11-04   # writes exports/
 ```
 
 ### What lives where
 
 | On your machine (project folder) | In the container | Notes |
 |---|---|---|
-| `config.toml` | `/app/config.toml` (read-only) | Edit it on the host; the `[search]` section is read on every search, no rebuild needed. A typo shows a notice on the page instead of breaking it. |
+| `config/` (holding `config.toml`) | `/app/config/` (read-only) | Edit `config/config.toml` on the host with any editor; the `[search]` section is read on every search, no restart or rebuild needed. A typo shows a notice on the page instead of breaking it. |
 | `data/` | `/app/data` | Database and CVs. Removing the container or the image never deletes them. |
 | `exports/` | `/app/exports` | Markdown exports. |
 
@@ -139,7 +140,7 @@ docker compose exec job-finder job-finder --config /app/config.toml export --dat
 - **Local time:** `TZ` in `compose.yaml` (default `America/Mexico_City`, override with the `TZ` environment variable as above). Without a time zone Docker uses UTC and "today" would change at the wrong hour for you.
 - **No root:** the app runs as an unprivileged user inside the container.
 - **Health:** Docker checks every 30 s that the app answers; `docker compose ps` shows `healthy` or `unhealthy`.
-- **Backups:** copy the `data/` folder (for example with the container stopped: `docker compose down`, copy, `docker compose up -d`).
+- **Backups:** copy the `data/` and `config/` folders (for example with the container stopped: `docker compose down`, copy, `docker compose up -d`).
 
 ### Troubleshooting
 
@@ -150,23 +151,23 @@ docker compose exec job-finder job-finder --config /app/config.toml export --dat
 | The app window says "job_finder is not running" | Docker is closed or the container is stopped: start Docker, then `docker compose up -d`. |
 | Code changes don't show up | The container runs the code it was built with: `docker compose up -d --build`. |
 | Dates or "today" look off by hours | Set `TZ` (see above), then `docker compose up -d`. |
-| Edits to `config.toml` are ignored | `config.toml` is a single-file bind mount. Editors that replace the file instead of writing into it (atomic save, `sed -i`) can leave the container with the old copy. `docker compose restart` fixes it. |
-| `config.toml` is a directory | It was missing at the first `up`. `docker compose down`, remove that directory, `cp config.example.toml config.toml`, `docker compose up -d`. |
+| The container keeps restarting and `docker compose logs` shows `config file not found: looked for config.toml and config/config.toml …` | `config/` is missing or has no `config.toml` (Docker creates an empty, root-owned `config/` if it did not exist at the first `up`). Create the file: `mkdir -p config && cp config.example.toml config/config.toml` (or move your old one: `mv config.toml config/config.toml`). The container starts by itself on its next restart, no `up` needed. |
+| Docker ignores my root `config.toml` | The container only mounts the `config/` folder. `mkdir -p config && mv config.toml config/config.toml`, then `docker compose up -d --build`. |
 | Linux: the database cannot be created (`unable to open database file`) or `permission denied` under `data/` or `exports/` | Docker created those folders as root before you did, and the app runs as uid 1000. `docker compose down`, then `sudo chown -R 1000:1000 data exports`, then `docker compose up -d`. Creating the folders yourself first (`mkdir -p data exports`) also works when your own user id is 1000 (`id -u`); otherwise use the `chown`. |
 
 To remove everything Docker created (your `data/` stays): `docker compose down --rmi local`.
 
 ## Configuration
 
-Copy [`config.example.toml`](config.example.toml) to `config.toml`; every key is commented there. It works unchanged for a first try; edit `terms`, `location` / `country_indeed` and `[profile] stack` first. The essentials:
+Copy [`config.example.toml`](config.example.toml) to `config/config.toml` (see the quickstarts); every key is commented there. It works unchanged for a first try; edit `terms`, `location` / `country_indeed` and `[profile] stack` first. The essentials:
 
 - **`terms`**: what to search for. **`sites`**: any of `linkedin`, `indeed`, `glassdoor`.
 - **`location`**: one place, or an ordered list (`["Monterrey, Nuevo León, Mexico", "Mexico"]` is only an example of the list form). Prefer the full `City, State, Country` form.
 - **`country_indeed`**: country for Indeed and Glassdoor. Change it together with `location` to search outside Mexico.
-- **Requests multiply**: every term runs on every site in every place (terms × places × sites). If a site rate limits you (LinkedIn is the strictest), raise `pause_seconds` and lower `results_wanted`, or search fewer terms and places.
+- **Requests multiply**: every term runs on every site in every place (terms × places × sites). If a site rate limits you (LinkedIn is the strictest), the search keeps what it got and stops asking that site; to avoid it, raise `pause_seconds` and lower `results_wanted`, or search fewer terms and places.
 - **`[profile] stack`**: your technologies; offers that mention more of them are listed first. The example values are placeholders for you to replace.
 - **`[goal] daily`**: applications per weekday (default 5, `0` turns the goal off).
-- **`[storage]`**: where the SQLite database and the Markdown exports go (`data/jobs.db`, `exports/`).
+- **`[storage]`**: where the SQLite database and the Markdown exports go (`data/jobs.db`, `exports/`), relative to the config file's folder, or to the project folder when the file is in a folder named `config`.
 
 The `[search]` section is read on every search; the other sections when the server starts. Full reference: [docs/configuration.md](docs/configuration.md).
 
@@ -242,12 +243,12 @@ profile.example/       empty templates for the resume knowledge base
 agents/                canonical resume-writer and resume-pdf prompts (see docs/ai-agents.md)
 .claude/agents/ .codex/agents/ .opencode/agents/ .pi/agents/
                        thin wrappers that point the AI tools to agents/
-config.example.toml    documented example config (copy to config.toml)
+config.example.toml    documented example config (copy to config/config.toml)
 compose.yaml           Docker Compose service (Dockerfile builds the image)
 AGENTS.md              guide for coding agents and contributors
 ```
 
-Private and git-ignored: `config.toml`, `data/`, `exports/`, `profile/`, `resumes/`.
+Private and git-ignored: `config/`, `config.toml`, `data/`, `exports/`, `profile/`, `resumes/`.
 
 ## Development
 

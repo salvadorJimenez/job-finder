@@ -24,7 +24,9 @@ EXPOSE 8000
 
 # Inside the container the app listens on every interface so Docker can forward to it;
 # compose.yaml publishes it on 127.0.0.1 only, so it stays private to this machine.
+# The config is not passed with --config: the app looks for /app/config.toml, then
+# /app/config/config.toml (the folder compose.yaml mounts), and prints that hint when neither exists.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/manifest.webmanifest', timeout=4)"
 
-CMD ["job-finder", "--config", "/app/config.toml", "serve", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["job-finder", "serve", "--host", "0.0.0.0", "--port", "8000"]

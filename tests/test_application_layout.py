@@ -111,7 +111,7 @@ def test_entries_are_grouped_under_day_labels(env):
     texts = [re.sub(r"<[^>]+>|\s+", " ", l).strip() for l in labels]
     assert texts == ["Tue Nov 3 · yesterday", "Mon Nov 2", "Sun Nov 1"]
     assert html.index("THREE") < html.index("Mon Nov 2") < html.index("TWO") < html.index("ONE")
-    assert 'datetime="2026-11-02T16:00:00"' in entry_item(html, "TWO") and ">16:00<" in entry_item(html, "TWO")
+    assert 'datetime="2026-11-02T16:00:00"' in entry_item(html, "TWO") and ">16:00:00<" in entry_item(html, "TWO")
 
 
 def test_labels_name_the_year_only_when_it_is_not_this_one(env):
@@ -140,8 +140,8 @@ def test_note_entries_show_phase_time_notes_and_named_quiet_actions(env):
     add_note(conn, app_id, "2026-11-02T10:00", "line one\nline two", phase="Technical")
     item = entry_item(page(client, app_id), "line one")
     assert 'class="entry-phase">Technical<' in item
-    assert 'aria-label="Delete entry from 2026-11-02 10:00"' in item
-    assert 'aria-label="Edit entry from 2026-11-02 10:00"' in item
+    assert 'aria-label="Delete entry from 2026-11-02 10:00:00"' in item
+    assert 'aria-label="Edit entry from 2026-11-02 10:00:00"' in item
     assert '<p class="entry-notes">line one\nline two</p>' in item
 
 

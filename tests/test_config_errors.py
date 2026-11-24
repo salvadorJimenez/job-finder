@@ -47,3 +47,29 @@ def test_fixed_config_clears_the_notice(tmp_path):
     assert "config.toml has an error" in client.get("/").text
     cfg_path.write_text(good)
     assert "config.toml has an error" not in client.get("/").text
+
+
+def test_a_config_briefly_missing_during_an_atomic_save_is_read_again(tmp_path, monkeypatch):
+    """Docker Desktop can show a bind-mounted file as missing for a moment after an editor
+    replaces it; one retry reads the new file instead of failing the search."""
+    import jobfinder.web as web
+    client, cfg_path, calls = setup(tmp_path)
+    real, misses = web.load_config, []
+
+    def flaky(path=None):
+        if not misses:
+            misses.append(path)
+            raise FileNotFoundError(f"config file not found: {path}")
+        return real(path)
+
+    monkeypatch.setattr(web, "load_config", flaky)
+    monkeypatch.setattr(web, "CONFIG_RETRY_SECONDS", 0)
+    r = client.get("/")
+    assert r.status_code == 200 and "config-error" not in r.text and misses
+
+
+def test_a_config_error_notice_has_no_double_period(tmp_path):
+    client, cfg_path, _ = setup(tmp_path)
+    cfg_path.unlink()
+    text = client.get("/").text
+    assert "config.toml has an error" in text and ".." not in text.split("config.toml has an error")[1].split("<")[0]

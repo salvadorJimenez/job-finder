@@ -1,6 +1,8 @@
-# job-finder configuration. Copy this file to config.toml and edit it:
-#   cp config.example.toml config.toml
-# config.toml is private (git ignores it). The [search] section is read on every
+# job-finder configuration. Copy this file to config/config.toml and edit it:
+#   mkdir -p config && cp config.example.toml config/config.toml
+# (Docker also needs: mkdir -p config data exports.) A config.toml in the project folder
+# works too for local use and wins if both exist; Docker only mounts the config/ folder.
+# The config is private (git ignores config/ and config.toml). The [search] section is read on every
 # search, so edits apply without a restart; the other sections load when the server starts.
 
 [search]
@@ -43,7 +45,9 @@ stack = ["Python", "Django", "TypeScript", "React", "PostgreSQL"]
 daily = 5
 
 [storage]
-# Where things are kept, relative to this file's folder.
+# Where things are kept, relative to this file's folder; except that a file inside a folder
+# named config (config/config.toml) is relative to the project folder, so data/ and exports/
+# stay next to config/ with either layout. Absolute paths are used as they are.
 database = "data/jobs.db"      # the SQLite database with every offer and application
 exports_dir = "exports"        # where `job-finder export` writes its Markdown files
 
